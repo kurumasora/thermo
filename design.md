@@ -234,6 +234,79 @@ class IMeasurementDevice(ABC):
 
 ---
 
+## 14．開発フロー
+
+### ブランチ戦略
+```
+main          # 本番環境に反映するコード（常に動く状態を保つ）
+develop       # 開発の統合ブランチ
+feature/xxx   # 機能ごとの作業ブランチ（作業後はdevelopにマージ）
+```
+
+### 作業の流れ
+```
+1. developから feature/xxx ブランチを切る
+2. 機能を実装する
+3. developにマージする
+4. developが安定したらmainにマージする
+```
+
+### featureブランチ一覧
+| ブランチ名 | 内容 |
+|---|---|
+| `feature/db-schema` | DBテーブル設計 |
+| `feature/ondotori` | データ取得（fetch.pyの移植） |
+| `feature/threshold` | 閾値異常判定 |
+| `feature/trend` | 一次回帰・傾向検知 |
+| `feature/webhook` | Teams通知 |
+| `feature/auth` | ログイン・セッション管理 |
+| `feature/dashboard` | ダッシュボード画面 |
+| `feature/settings` | 閾値設定画面 |
+| `feature/admin` | ユーザー管理画面 |
+
+---
+
+## 15．パッケージ管理
+
+### 管理場所の対応
+| 管理方法 | 対象 |
+|---|---|
+| `apt` | OS・サーバーソフトウェア |
+| `.venv` + `pip` | Pythonライブラリ |
+| `npm` | JavaScriptライブラリ |
+
+### aptでインストールするもの（システムパッケージ）
+| パッケージ | 用途 |
+|---|---|
+| `postgresql` | DBサーバー本体 |
+| `nodejs` | Reactのビルド環境 |
+| `nginx` | Webサーバー・リバースプロキシ |
+| `certbot` | SSL証明書（Let's Encrypt） |
+| `python3-certbot-nginx` | certbotのNginxプラグイン |
+
+### .venvでインストールするもの（Pythonライブラリ）
+| パッケージ | 用途 |
+|---|---|
+| `fastapi` | バックエンドフレームワーク |
+| `uvicorn` | FastAPIの実行サーバー |
+| `sqlalchemy` | ORM（DBテーブル操作） |
+| `asyncpg` | PostgreSQL接続 |
+| `python-dotenv` | .envファイルの読み込み |
+| `requests` | おんどとりAPI接続 |
+| `passlib` | パスワードハッシュ化 |
+| `python-jose` | セッション管理 |
+| `numpy` | 一次回帰計算 |
+
+### npmでインストールするもの（JavaScriptライブラリ）
+| パッケージ | 用途 |
+|---|---|
+| `react` | UIフレームワーク |
+| `typescript` | 型付きJavaScript |
+| `axios` | FastAPIへのHTTPリクエスト |
+| `react-router-dom` | 画面遷移管理 |
+
+---
+
 ## 改訂履歴
 | 版 | 日付 | 内容 |
 |---|---|---|
