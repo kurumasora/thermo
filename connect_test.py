@@ -6,9 +6,9 @@ url = "https://api.webstorage.jp/v1/devices/current"
 
 # 送信するデータ（認証情報をここに含めるのが正解です）
 payload = {
-    "api-key": "6ket3lo48nlhuvmerj3h6gad5m0bis4fac5c1hscka6kf",
-    "login-id": "tbai3831",
-    "login-pass": "Marlowe0127"
+     "api-key": os.environ["API_KEY"],
+    "login-id": os.environ["LOGIN_ID"],
+    "login-pass": os.environ["LOGIN_PASS"],
 }
 
 # HTTPヘッダーの設定
