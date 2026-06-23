@@ -1,5 +1,9 @@
 import requests
 import json
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # APIエンドポイント
 url = "https://api.webstorage.jp/v1/devices/current"
