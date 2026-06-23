@@ -27,7 +27,7 @@
 | フロントエンド | React（TypeScript） |
 | DB | MySQL |
 | 定期実行 | cron |
-| 通知 | Discord / Microsoft Teams Webhook |
+| 通知 | Microsoft Teams Webhook |
 | インフラ | さくらVPS + Nginx |
 
 ---
@@ -92,7 +92,7 @@ MySQL
     ↓ 判定
 threshold.py / trend.py
     ↓ アラート検知
-webhook.py → Discord / Teams
+webhook.py → Microsoft Teams
 ```
 
 ---
