@@ -15,6 +15,15 @@ def main():
     cur = conn.cursor()
 
     cur.execute(
+        "SELECT id FROM measurements WHERE timestamp = %s",
+        (data_list[0].timestamp,)
+    )
+    if cur.fetchone() is not None:
+        cur.close()
+        conn.close()
+        return
+
+    cur.execute(
         "INSERT INTO measurements (timestamp, temp_ch1, temp_ch2, battery_level) VALUES(%s, %s, %s, %s)",
         (data_list[0].timestamp, data_list[0].value, data_list[1].value, None)
     )
