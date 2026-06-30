@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
+import { jwtDecode } from 'jwt-decode'
 import client from '../api/client'
+
+interface TokenPayload {
+  sub: string
+}
 
 type User = {
   id: number
@@ -14,6 +19,14 @@ function Admin() {
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('user')
   const [resetPasswords, setResetPasswords] = useState<Record<number, string>>({})
+
+  const currentUsername = (() => {
+    try {
+      return jwtDecode<TokenPayload>(localStorage.getItem('token') ?? '').sub
+    } catch {
+      return ''
+    }
+  })()
 
   const fetchUsers = async () => {
     const res = await client.get('/api/admin/users')
@@ -87,33 +100,42 @@ function Admin() {
           </tr>
         </thead>
         <tbody>
-          {users.map(u => (
-            <tr key={u.id}>
-              <td style={tdStyle}>{u.username}</td>
-              <td style={tdStyle}>
-                <select
-                  value={u.role}
-                  onChange={e => handleRoleChange(u.id, e.target.value)}
-                >
-                  <option value="user">一般ユーザー</option>
-                  <option value="admin">管理者</option>
-                </select>
-              </td>
-              <td style={tdStyle}>{u.created_at}</td>
-              <td style={tdStyle}>
-                <input
-                  type="password"
-                  placeholder="新しいパスワード"
-                  value={resetPasswords[u.id] ?? ''}
-                  onChange={e => setResetPasswords(prev => ({ ...prev, [u.id]: e.target.value }))}
-                />
-                <button onClick={() => handlePasswordReset(u.id)}>リセット</button>
-              </td>
-              <td style={tdStyle}>
-                <button onClick={() => handleDelete(u.id)} style={{ color: 'red' }}>削除</button>
-              </td>
-            </tr>
-          ))}
+          {users.map(u => {
+            const isSelf = u.username === currentUsername
+            return (
+              <tr key={u.id} style={{ background: isSelf ? '#f8fafc' : undefined }}>
+                <td style={tdStyle}>
+                  {u.username}
+                  {isSelf && <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', color: '#64748b' }}>(自分)</span>}
+                </td>
+                <td style={tdStyle}>
+                  {isSelf ? (
+                    <span>{u.role === 'admin' ? '管理者' : '一般ユーザー'}</span>
+                  ) : (
+                    <select value={u.role} onChange={e => handleRoleChange(u.id, e.target.value)}>
+                      <option value="user">一般ユーザー</option>
+                      <option value="admin">管理者</option>
+                    </select>
+                  )}
+                </td>
+                <td style={tdStyle}>{u.created_at}</td>
+                <td style={tdStyle}>
+                  <input
+                    type="password"
+                    placeholder="新しいパスワード"
+                    value={resetPasswords[u.id] ?? ''}
+                    onChange={e => setResetPasswords(prev => ({ ...prev, [u.id]: e.target.value }))}
+                  />
+                  <button onClick={() => handlePasswordReset(u.id)}>リセット</button>
+                </td>
+                <td style={tdStyle}>
+                  {!isSelf && (
+                    <button onClick={() => handleDelete(u.id)} style={{ color: 'red' }}>削除</button>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>

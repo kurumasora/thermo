@@ -54,12 +54,12 @@ def create_user(body: UserCreate, user: dict = Depends(require_admin)):
 def delete_user(user_id: int, user: dict = Depends(require_admin)):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(
-        "SELECT id FROM users WHERE id = %s",
-        (user_id,)
-    )
-    if cur.fetchone() is None:
+    cur.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
+    row = cur.fetchone()
+    if row is None:
         raise HTTPException(status_code=404, detail="ユーザが存在しません")
+    if row[1] == user.get("sub"):
+        raise HTTPException(status_code=400, detail="自分自身を削除することはできません")
 
     cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
     conn.commit()
@@ -77,6 +77,13 @@ class PasswordReset(BaseModel):
 def update_role(user_id: int, body: RoleUpdate, user: dict = Depends(require_admin)):
     conn = get_connection()
     cur = conn.cursor()
+    cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+    row = cur.fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="ユーザが存在しません")
+    if row[0] == user.get("sub"):
+        raise HTTPException(status_code=400, detail="自分自身のロールを変更することはできません")
+
     cur.execute("UPDATE users SET role = %s WHERE id = %s", (body.role, user_id))
     conn.commit()
     cur.close()
