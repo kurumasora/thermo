@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import axios from 'axios'
+import client from '../api/client'
 
 type User = {
   id: number
@@ -15,11 +15,8 @@ function Admin() {
   const [role, setRole] = useState('user')
   const [resetPasswords, setResetPasswords] = useState<Record<number, string>>({})
 
-  const token = localStorage.getItem('token')
-  const headers = { Authorization: `Bearer ${token}` }
-
   const fetchUsers = async () => {
-    const res = await axios.get('/api/admin/users', { headers })
+    const res = await client.get('/api/admin/users')
     setUsers(res.data)
   }
 
@@ -29,7 +26,7 @@ function Admin() {
 
   const handleCreate = async () => {
     if (!username || !password) return
-    await axios.post('/api/admin/users', { username, password, role }, { headers })
+    await client.post('/api/admin/users', { username, password, role })
     setUsername('')
     setPassword('')
     await fetchUsers()
@@ -37,19 +34,19 @@ function Admin() {
 
   const handleDelete = async (id: number) => {
     if (!confirm('削除しますか？')) return
-    await axios.delete(`/api/admin/users/${id}`, { headers })
+    await client.delete(`/api/admin/users/${id}`)
     setUsers(users.filter(u => u.id !== id))
   }
 
   const handleRoleChange = async (id: number, newRole: string) => {
-    await axios.put(`/api/admin/users/${id}/role`, { role: newRole }, { headers })
+    await client.put(`/api/admin/users/${id}/role`, { role: newRole })
     setUsers(users.map(u => u.id === id ? { ...u, role: newRole } : u))
   }
 
   const handlePasswordReset = async (id: number) => {
     const newPassword = resetPasswords[id]
     if (!newPassword) return
-    await axios.put(`/api/admin/users/${id}/password`, { password: newPassword }, { headers })
+    await client.put(`/api/admin/users/${id}/password`, { password: newPassword })
     setResetPasswords(prev => ({ ...prev, [id]: '' }))
     alert('パスワードをリセットしました')
   }

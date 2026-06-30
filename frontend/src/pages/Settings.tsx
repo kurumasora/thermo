@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import axios from 'axios'
+import client from '../api/client'
 
 type Settings = {
   id: number
@@ -15,15 +15,11 @@ function Settings() {
   const [settings, setSettings] = useState<Settings[]>([])
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    const headers = { Authorization: `Bearer ${token}` }
-    axios.get('/api/settings', { headers }).then(res => setSettings(res.data))
+    client.get('/api/settings').then(res => setSettings(res.data))
   }, [])
 
   const handleUpdate = async (s: Settings) => {
-    const token = localStorage.getItem('token')
-    const headers = { Authorization: `Bearer ${token}` }
-    await axios.put(`/api/settings/${s.channel}`, s, { headers })
+    await client.put(`/api/settings/${s.channel}`, s)
     alert('更新しました')
   }
 

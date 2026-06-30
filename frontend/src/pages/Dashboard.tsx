@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import axios from 'axios'
+import client from '../api/client'
 
 type Measurement = {
   id: number
@@ -23,10 +23,8 @@ function Dashboard() {
   const [alerts, setAlerts] = useState<Alert[]>([])
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    const headers = { Authorization: `Bearer ${token}` }
-    axios.get('/api/measurements', { headers }).then(res => setMeasurements(res.data))
-    axios.get('/api/alerts', { headers }).then(res => setAlerts(res.data))
+    client.get('/api/measurements').then(res => setMeasurements(res.data))
+    client.get('/api/alerts').then(res => setAlerts(res.data))
   }, [])
 
   return (
