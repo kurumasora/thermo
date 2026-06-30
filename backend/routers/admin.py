@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from backend.db import get_connection
-from backend.auth.utils import hash_password
+from backend.auth.utils import hash_password, require_admin
 
 router = APIRouter()
 
@@ -11,7 +11,7 @@ class UserCreate(BaseModel):
     role: str
 
 @router.get("/api/admin/users")
-def get_users():
+def get_users(user: dict = Depends(require_admin)):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
@@ -31,7 +31,7 @@ def get_users():
     ]
 
 @router.post("/api/admin/users")
-def create_user(body: UserCreate):
+def create_user(body: UserCreate, user: dict = Depends(require_admin)):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
@@ -51,7 +51,7 @@ def create_user(body: UserCreate):
     return{"status": "ok"}
 
 @router.delete("/api/admin/users/{user_id}")
-def delete_user(user_id: int):
+def delete_user(user_id: int, user: dict = Depends(require_admin)):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
@@ -74,7 +74,7 @@ class PasswordReset(BaseModel):
     password: str
 
 @router.put("/api/admin/users/{user_id}/role")
-def update_role(user_id: int, body: RoleUpdate):
+def update_role(user_id: int, body: RoleUpdate, user: dict = Depends(require_admin)):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("UPDATE users SET role = %s WHERE id = %s", (body.role, user_id))
@@ -84,7 +84,7 @@ def update_role(user_id: int, body: RoleUpdate):
     return {"status": "ok"}
 
 @router.put("/api/admin/users/{user_id}/password")
-def reset_password(user_id: int, body:PasswordReset):
+def reset_password(user_id: int, body: PasswordReset, user: dict = Depends(require_admin)):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(

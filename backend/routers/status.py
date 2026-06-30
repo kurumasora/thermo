@@ -1,10 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from backend.db import get_connection
+from backend.auth.utils import get_current_user
 
 router = APIRouter()
 
 @router.get("/api/measurements")
-def get_measurements():
+def get_measurements(user: dict = Depends(get_current_user)):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
@@ -25,22 +26,22 @@ def get_measurements():
     ]
 
 @router.get("/api/alerts")
-def get_alerts():
+def get_alerts(user: dict = Depends(get_current_user)):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, timestamp, channl, alert_type, value, message, FROM alert_history ORDER BY timestamp DESC LIMIT 100"
+        "SELECT id, timestamp, channel, alert_type, value, message FROM alert_history ORDER BY timestamp DESC LIMIT 100"
     )
     rows = cur.fetchall()
     cur.close()
     conn.close()
     return [
         {
-            "id": row[0], 
-            "timestamp": str(row[1]), 
-            "channel": rows[2], 
-            "alert_type": row[3], 
-            "value": row[4], 
+            "id": row[0],
+            "timestamp": str(row[1]),
+            "channel": row[2],
+            "alert_type": row[3],
+            "value": row[4],
             "message": row[5]
         }
         for row in rows

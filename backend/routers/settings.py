@@ -1,11 +1,19 @@
-from fastapi import APIRouter
-from backend.db import get_connection
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from backend.db import get_connection
+from backend.auth.utils import get_current_user, require_admin
 
 router = APIRouter()
 
+class SettingsUpdate(BaseModel):
+    upper_threshold: float
+    lower_threshold: float
+    slope_threshold: float
+    regression_count: int
+    trend_monitor: bool
+
 @router.get("/api/settings")
-def get_settings():
+def get_settings(user: dict = Depends(get_current_user)):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
@@ -16,7 +24,7 @@ def get_settings():
     conn.close()
     return [
         {
-             "id": row[0],
+            "id": row[0],
             "channel": row[1],
             "upper_threshold": row[2],
             "lower_threshold": row[3],
@@ -27,16 +35,8 @@ def get_settings():
         for row in rows
     ]
 
-class SettingsUpdate(BaseModel):
-    upper_threshold: float
-    lower_threshold: float
-    slope_threshold: float
-    regression_count: int
-    trend_monitor: bool
-
-
 @router.put("/api/settings/{channel}")
-def update_settings(channel: int, body: SettingsUpdate):
+def update_settings(channel: int, body: SettingsUpdate, user: dict = Depends(require_admin)):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(

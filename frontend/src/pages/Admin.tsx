@@ -18,6 +18,11 @@ function Admin() {
   const headers = { Authorization: `Bearer ${token}` }
 
   useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) {
+      window.location.href = '/login'
+      return
+    }
     axios.get('/api/admin/users', { headers }).then(res => setUsers(res.data))
   }, [])
 
