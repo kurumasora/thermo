@@ -1,63 +1,73 @@
 from dotenv import load_dotenv
 load_dotenv()
 
+import logging
 from backend.devices.ondotori import OndotoriDevice
 from backend.judgement.threshold import ThresholdJudgement
 from backend.judgement.trend import TrendJudgement
 from backend.notification.webhook import TeamsWebhook
 from backend.db import get_connection
 
+logging.basicConfig(
+    filename="/home/kuruma/thermo/monitor.log",
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 def main():
-    device = OndotoriDevice()
-    data_list = device.get_data()
+    conn = None
+    try:
+        device = OndotoriDevice()
+        data_list = device.get_data()
 
-    conn = get_connection()
-    cur = conn.cursor()
+        conn = get_connection()
+        cur = conn.cursor()
 
-    cur.execute(
-        "SELECT id FROM measurements WHERE timestamp = %s",
-        (data_list[0].timestamp,)
-    )
-    if cur.fetchone() is not None:
-        cur.close()
-        conn.close()
-        return
-
-    cur.execute(
-        "INSERT INTO measurements (timestamp, temp_ch1, temp_ch2, battery_level) VALUES(%s, %s, %s, %s)",
-        (data_list[0].timestamp, data_list[0].value, data_list[1].value, None)
-    )
-    conn.commit()
-
-    for data in data_list:
         cur.execute(
-            "SELECT upper_threshold, lower_threshold, slope_threshold, regression_count, trend_monitor FROM master_config WHERE channel = %s",
-            (data.channel,)
+            "SELECT id FROM measurements WHERE timestamp = %s",
+            (data_list[0].timestamp,)
         )
-        config = cur.fetchone()
-        if config is None:
-            continue
-        upper, lower, slope_threshold, regression_count, trend_monitor = config
+        if cur.fetchone() is not None:
+            return
 
-        threshold = ThresholdJudgement(upper=upper, lower=lower)
-        result = threshold.judge(data)
+        cur.execute(
+            "INSERT INTO measurements (timestamp, temp_ch1, temp_ch2, battery_level) VALUES(%s, %s, %s, %s)",
+            (data_list[0].timestamp, data_list[0].value, data_list[1].value, None)
+        )
+        conn.commit()
+        logger.info(f"計測データ保存: {data_list[0].timestamp} CH1={data_list[0].value} CH2={data_list[1].value}")
 
-        if result["is_abnormal"]:
-            webhook = TeamsWebhook()
-            webhook.send(result["message"])
+        for data in data_list:
             cur.execute(
-                "INSERT INTO alert_history (timestamp, channel, alert_type, value, message) VALUES(%s, %s, %s, %s, %s)", 
-                (data.timestamp, data.channel, "threshold", data.value, result["message"])
+                "SELECT upper_threshold, lower_threshold, slope_threshold, regression_count, trend_monitor FROM master_config WHERE channel = %s",
+                (data.channel,)
             )
-            conn.commit()
+            config = cur.fetchone()
+            if config is None:
+                continue
+            upper, lower, slope_threshold, regression_count, trend_monitor = config
 
-        if trend_monitor:
+            threshold = ThresholdJudgement(upper=upper, lower=lower)
+            result = threshold.judge(data)
+
+            if result["is_abnormal"]:
+                webhook = TeamsWebhook()
+                webhook.send(result["message"])
+                cur.execute(
+                    "INSERT INTO alert_history (timestamp, channel, alert_type, value, message) VALUES(%s, %s, %s, %s, %s)",
+                    (data.timestamp, data.channel, "threshold", data.value, result["message"])
+                )
+                conn.commit()
+                logger.warning(f"閾値異常アラート: {result['message']}")
+
+            if trend_monitor:
                 cur.execute(
                     "SELECT timestamp, temp_ch1, temp_ch2 FROM measurements ORDER BY timestamp DESC LIMIT %s",
                     (regression_count,)
                 )
                 rows = cur.fetchall()
-        
+
                 trend_data = [
                     data.__class__(
                         channel=data.channel,
@@ -67,10 +77,10 @@ def main():
                     )
                     for row in rows
                 ]
-        
+
                 trend = TrendJudgement(slope_threshold=slope_threshold, upper=upper, lower=lower)
                 trend_result = trend.judge(trend_data)
-        
+
                 if trend_result["is_abnormal"]:
                     webhook = TeamsWebhook()
                     webhook.send(trend_result["message"])
@@ -79,12 +89,14 @@ def main():
                         (data.timestamp, data.channel, "trend", data.value, trend_result["message"], trend_result["predicted_steps"])
                     )
                     conn.commit()
+                    logger.warning(f"傾向異常アラート: {trend_result['message']}")
 
-
-    
-
-    cur.close()
-    conn.close()
+    except Exception as e:
+        logger.error(f"monitor.py 実行エラー: {e}", exc_info=True)
+        raise
+    finally:
+        if conn is not None:
+            conn.close()
 
 if __name__ == "__main__":
     main()
