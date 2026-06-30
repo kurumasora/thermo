@@ -16,10 +16,6 @@ function Settings() {
 
   useEffect(() => {
     const token = localStorage.getItem('token')
-    if (!token) {
-      window.location.href = '/login'
-      return
-    }
     const headers = { Authorization: `Bearer ${token}` }
     axios.get('/api/settings', { headers }).then(res => setSettings(res.data))
   }, [])

@@ -24,10 +24,6 @@ function Admin() {
   }
 
   useEffect(() => {
-    if (!token) {
-      window.location.href = '/login'
-      return
-    }
     fetchUsers()
   }, [])
 

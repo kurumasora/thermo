@@ -24,10 +24,6 @@ function Dashboard() {
 
   useEffect(() => {
     const token = localStorage.getItem('token')
-    if (!token) {
-      window.location.href = '/login'
-      return
-    }
     const headers = { Authorization: `Bearer ${token}` }
     axios.get('/api/measurements', { headers }).then(res => setMeasurements(res.data))
     axios.get('/api/alerts', { headers }).then(res => setAlerts(res.data))

@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Settings from './pages/Settings'
 import Admin from './pages/Admin'
 import Navbar from './components/Navbar'
+import RequireAuth from './components/RequireAuth'
 
 function Layout() {
   const location = useLocation()
@@ -14,9 +15,9 @@ function Layout() {
       {showNavbar && <Navbar />}
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/admin" element={<Admin />} />
+        <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
+        <Route path="/settings" element={<RequireAuth requireAdmin><Settings /></RequireAuth>} />
+        <Route path="/admin" element={<RequireAuth requireAdmin><Admin /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </>
