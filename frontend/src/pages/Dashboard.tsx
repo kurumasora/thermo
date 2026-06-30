@@ -19,12 +19,16 @@ type Alert = {
   predicted_steps: number | null
 }
 
-const POLL_INTERVAL_MS = 10 * 60 * 1000 // cronと同じ10分
+const POLL_INTERVAL_MS = 10 * 60 * 1000
+const MEAS_PAGE_SIZE = 20
+const ALERT_PAGE_SIZE = 20
 
 function Dashboard() {
   const [measurements, setMeasurements] = useState<Measurement[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [measPage, setMeasPage] = useState(1)
+  const [alertPage, setAlertPage] = useState(1)
 
   const fetchData = () => {
     Promise.all([
@@ -43,6 +47,11 @@ function Dashboard() {
     return () => clearInterval(timer)
   }, [])
 
+  const measSlice = measurements.slice((measPage - 1) * MEAS_PAGE_SIZE, measPage * MEAS_PAGE_SIZE)
+  const measTotal = Math.ceil(measurements.length / MEAS_PAGE_SIZE)
+  const alertSlice = alerts.slice((alertPage - 1) * ALERT_PAGE_SIZE, alertPage * ALERT_PAGE_SIZE)
+  const alertTotal = Math.ceil(alerts.length / ALERT_PAGE_SIZE)
+
   return (
     <div style={{ padding: '1.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem' }}>
@@ -55,7 +64,7 @@ function Dashboard() {
       </div>
 
       <h2>最新の計測データ</h2>
-      <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '2rem' }}>
+      <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '0.5rem' }}>
         <thead>
           <tr>
             <th style={thStyle}>タイムスタンプ</th>
@@ -64,7 +73,7 @@ function Dashboard() {
           </tr>
         </thead>
         <tbody>
-          {measurements.map(m => (
+          {measSlice.map(m => (
             <tr key={m.id}>
               <td style={tdStyle}>{m.timestamp}</td>
               <td style={tdStyle}>{m.temp_ch1}℃</td>
@@ -73,9 +82,10 @@ function Dashboard() {
           ))}
         </tbody>
       </table>
+      <Pagination page={measPage} total={measTotal} onChange={setMeasPage} />
 
-      <h2>アラート履歴</h2>
-      <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+      <h2 style={{ marginTop: '2rem' }}>アラート履歴</h2>
+      <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '0.5rem' }}>
         <thead>
           <tr>
             <th style={thStyle}>タイムスタンプ</th>
@@ -87,7 +97,7 @@ function Dashboard() {
           </tr>
         </thead>
         <tbody>
-          {alerts.map(a => (
+          {alertSlice.map(a => (
             <tr key={a.id} style={{ background: a.alert_type === 'threshold' ? '#fef2f2' : '#fffbeb' }}>
               <td style={tdStyle}>{a.timestamp}</td>
               <td style={tdStyle}>CH{a.channel}</td>
@@ -115,6 +125,18 @@ function Dashboard() {
           ))}
         </tbody>
       </table>
+      <Pagination page={alertPage} total={alertTotal} onChange={setAlertPage} />
+    </div>
+  )
+}
+
+function Pagination({ page, total, onChange }: { page: number; total: number; onChange: (p: number) => void }) {
+  if (total <= 1) return null
+  return (
+    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '1rem' }}>
+      <button onClick={() => onChange(page - 1)} disabled={page === 1}>＜</button>
+      <span style={{ fontSize: '0.9rem' }}>{page} / {total}</span>
+      <button onClick={() => onChange(page + 1)} disabled={page === total}>＞</button>
     </div>
   )
 }
