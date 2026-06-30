@@ -1,10 +1,28 @@
 import { useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import client from '../api/client'
+import { jwtDecode } from 'jwt-decode'
+
+interface TokenPayload {
+  exp: number
+}
 
 function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+
+  const token = localStorage.getItem('token')
+  if (token) {
+    try {
+      const payload = jwtDecode<TokenPayload>(token)
+      if (payload.exp * 1000 > Date.now()) {
+        return <Navigate to="/" replace />
+      }
+    } catch {
+      localStorage.removeItem('token')
+    }
+  }
 
   const handleLogin = async () => {
     try {
