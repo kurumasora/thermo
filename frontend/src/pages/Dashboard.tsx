@@ -19,18 +19,40 @@ type Alert = {
   predicted_steps: number | null
 }
 
+const POLL_INTERVAL_MS = 10 * 60 * 1000 // cronと同じ10分
+
 function Dashboard() {
   const [measurements, setMeasurements] = useState<Measurement[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  const fetchData = () => {
+    Promise.all([
+      client.get('/api/measurements'),
+      client.get('/api/alerts'),
+    ]).then(([measRes, alertRes]) => {
+      setMeasurements(measRes.data)
+      setAlerts(alertRes.data)
+      setLastUpdated(new Date())
+    })
+  }
 
   useEffect(() => {
-    client.get('/api/measurements').then(res => setMeasurements(res.data))
-    client.get('/api/alerts').then(res => setAlerts(res.data))
+    fetchData()
+    const timer = setInterval(fetchData, POLL_INTERVAL_MS)
+    return () => clearInterval(timer)
   }, [])
 
   return (
     <div style={{ padding: '1.5rem' }}>
-      <h1>ダッシュボード</h1>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem' }}>
+        <h1>ダッシュボード</h1>
+        {lastUpdated && (
+          <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
+            最終更新：{lastUpdated.toLocaleTimeString('ja-JP')}
+          </span>
+        )}
+      </div>
 
       <h2>最新の計測データ</h2>
       <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '2rem' }}>
