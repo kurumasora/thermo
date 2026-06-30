@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import axios from 'axios'
+import client from '../api/client'
 
 function Login() {
   const [username, setUsername] = useState('')
@@ -8,7 +8,7 @@ function Login() {
 
   const handleLogin = async () => {
     try {
-      const res = await axios.post('/api/auth/login', { username, password })
+      const res = await client.post('/api/auth/login', { username, password })
       localStorage.setItem('token', res.data.access_token)
       window.location.href = '/'
     } catch {
