@@ -75,9 +75,8 @@ def main():
                     webhook = TeamsWebhook()
                     webhook.send(trend_result["message"])
                     cur.execute(
-                        "INSERT INTO alert_history (timestamp, channel, alert_type, value, message) VALUES (%s, %s, %s, %s, %s)",
-                        (data.timestamp, data.channel, "trend", data.value, trend_result["message"])
-        
+                        "INSERT INTO alert_history (timestamp, channel, alert_type, value, message, predicted_steps) VALUES (%s, %s, %s, %s, %s, %s)",
+                        (data.timestamp, data.channel, "trend", data.value, trend_result["message"], trend_result["predicted_steps"])
                     )
                     conn.commit()
 

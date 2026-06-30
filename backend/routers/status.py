@@ -30,7 +30,7 @@ def get_alerts(user: dict = Depends(get_current_user)):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, timestamp, channel, alert_type, value, message FROM alert_history ORDER BY timestamp DESC LIMIT 100"
+        "SELECT id, timestamp, channel, alert_type, value, message, predicted_steps FROM alert_history ORDER BY timestamp DESC LIMIT 100"
     )
     rows = cur.fetchall()
     cur.close()
@@ -42,7 +42,8 @@ def get_alerts(user: dict = Depends(get_current_user)):
             "channel": row[2],
             "alert_type": row[3],
             "value": row[4],
-            "message": row[5]
+            "message": row[5],
+            "predicted_steps": row[6]
         }
         for row in rows
     ]
