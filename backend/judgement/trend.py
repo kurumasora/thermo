@@ -9,7 +9,7 @@ class TrendJudgement:
 
     def judge(self, data_list: list[MeasurementData]) -> dict:
         if len(data_list) < 2:
-            return {"is_abnormal": False, "message": "", "predicted_time": none}
+            return {"is_abnormal": False, "message": "", "predicted_time": None}
         
         x = np.array(range(len(data_list)))
         y = np.array([d.value for d in data_list])
