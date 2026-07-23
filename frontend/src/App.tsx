@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import Alerts from './pages/Alerts'
 import Settings from './pages/Settings'
 import Admin from './pages/Admin'
 import Navbar from './components/Navbar'
@@ -16,6 +17,7 @@ function Layout() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
+        <Route path="/alerts" element={<RequireAuth><Alerts /></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth requireAdmin><Settings /></RequireAuth>} />
         <Route path="/admin" element={<RequireAuth requireAdmin><Admin /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" />} />

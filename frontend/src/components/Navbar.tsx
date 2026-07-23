@@ -29,6 +29,7 @@ function Navbar() {
     <nav style={{ display: 'flex', gap: '1rem', padding: '0.75rem 1.5rem', background: '#1e293b', color: '#fff', alignItems: 'center' }}>
       <span style={{ fontWeight: 'bold', marginRight: 'auto' }}>Thermonitor</span>
       <Link to="/" style={{ color: '#cbd5e1', textDecoration: 'none' }}>ダッシュボード</Link>
+      <Link to="/alerts" style={{ color: '#cbd5e1', textDecoration: 'none' }}>アラート履歴</Link>
       {role === 'admin' && (
         <>
           <Link to="/settings" style={{ color: '#cbd5e1', textDecoration: 'none' }}>閾値設定</Link>

@@ -12,16 +12,6 @@ type Measurement = {
   battery_level: number | null
 }
 
-type Alert = {
-  id: number
-  timestamp: string
-  channel: number
-  alert_type: string
-  value: number
-  message: string
-  predicted_steps: number | null
-}
-
 type Config = {
   channel: number
   upper_threshold: number
@@ -30,26 +20,19 @@ type Config = {
 
 const POLL_INTERVAL_MS = 10 * 60 * 1000
 const MEAS_PAGE_SIZE = 20
-const ALERT_PAGE_SIZE = 20
 
 function Dashboard() {
   const [measurements, setMeasurements] = useState<Measurement[]>([])
-  const [alerts, setAlerts] = useState<Alert[]>([])
   const [configs, setConfigs] = useState<Config[]>([])
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [measPage, setMeasPage] = useState(1)
-  const [alertPage, setAlertPage] = useState(1)
-  const [filterType, setFilterType] = useState<'all' | 'threshold' | 'trend'>('all')
-  const [filterChannel, setFilterChannel] = useState<'all' | '1' | '2'>('all')
 
   const fetchData = () => {
     Promise.all([
       client.get('/api/measurements'),
-      client.get('/api/alerts'),
       client.get('/api/settings'),
-    ]).then(([measRes, alertRes, settingsRes]) => {
+    ]).then(([measRes, settingsRes]) => {
       setMeasurements(measRes.data)
-      setAlerts(alertRes.data)
       setConfigs(settingsRes.data)
       setLastUpdated(new Date())
     })
@@ -74,7 +57,6 @@ function Dashboard() {
       ? 'danger' : 'normal'
     : 'normal'
 
-  // グラフ用：古い順に並べて直近24件（4時間分）
   const graphData = [...measurements].reverse().slice(-24).map(m => ({
     time: m.timestamp.slice(5, 16).replace('T', ' '),
     CH1: m.temp_ch1,
@@ -84,18 +66,9 @@ function Dashboard() {
   const measSlice = measurements.slice((measPage - 1) * MEAS_PAGE_SIZE, measPage * MEAS_PAGE_SIZE)
   const measTotal = Math.ceil(measurements.length / MEAS_PAGE_SIZE)
 
-  const filteredAlerts = alerts.filter(a => {
-    if (filterType !== 'all' && a.alert_type !== filterType) return false
-    if (filterChannel !== 'all' && a.channel !== Number(filterChannel)) return false
-    return true
-  })
-  const alertSlice = filteredAlerts.slice((alertPage - 1) * ALERT_PAGE_SIZE, alertPage * ALERT_PAGE_SIZE)
-  const alertTotal = Math.ceil(filteredAlerts.length / ALERT_PAGE_SIZE)
-
   return (
     <div style={{ padding: '1.5rem' }}>
 
-      {/* ヘッダー */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem', marginBottom: '1.5rem' }}>
         <h1 style={{ margin: 0 }}>ダッシュボード</h1>
         {lastUpdated && (
@@ -105,7 +78,6 @@ function Dashboard() {
         )}
       </div>
 
-      {/* 現在値カード */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
         <TempCard
           label="CH1 現在温度"
@@ -123,7 +95,6 @@ function Dashboard() {
         />
       </div>
 
-      {/* 温度グラフ */}
       <h2>温度推移（直近24件）</h2>
       <div style={{ marginBottom: '2rem' }}>
         <ResponsiveContainer width="100%" height={280}>
@@ -141,7 +112,6 @@ function Dashboard() {
         </ResponsiveContainer>
       </div>
 
-      {/* 計測データテーブル */}
       <h2>計測データ一覧</h2>
       <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '0.5rem' }}>
         <thead>
@@ -162,67 +132,6 @@ function Dashboard() {
         </tbody>
       </table>
       <Pagination page={measPage} total={measTotal} onChange={setMeasPage} />
-
-      {/* アラート履歴 */}
-      <h2 style={{ marginTop: '2rem' }}>アラート履歴</h2>
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-        <label style={{ fontSize: '0.9rem' }}>
-          種別：
-          <select value={filterType} onChange={e => { setFilterType(e.target.value as typeof filterType); setAlertPage(1) }} style={{ marginLeft: '0.25rem' }}>
-            <option value="all">すべて</option>
-            <option value="threshold">閾値超過</option>
-            <option value="trend">傾向異常</option>
-          </select>
-        </label>
-        <label style={{ fontSize: '0.9rem' }}>
-          チャンネル：
-          <select value={filterChannel} onChange={e => { setFilterChannel(e.target.value as typeof filterChannel); setAlertPage(1) }} style={{ marginLeft: '0.25rem' }}>
-            <option value="all">すべて</option>
-            <option value="1">CH1</option>
-            <option value="2">CH2</option>
-          </select>
-        </label>
-        <span style={{ fontSize: '0.85rem', color: '#64748b', alignSelf: 'center' }}>
-          {filteredAlerts.length}件
-        </span>
-      </div>
-      <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '0.5rem' }}>
-        <thead>
-          <tr>
-            <th style={thStyle}>タイムスタンプ</th>
-            <th style={thStyle}>CH</th>
-            <th style={thStyle}>種別</th>
-            <th style={thStyle}>値</th>
-            <th style={thStyle}>メッセージ</th>
-            <th style={thStyle}>閾値到達予測</th>
-          </tr>
-        </thead>
-        <tbody>
-          {alertSlice.map(a => (
-            <tr key={a.id} style={{ background: a.alert_type === 'threshold' ? '#fef2f2' : '#fffbeb' }}>
-              <td style={tdStyle}>{a.timestamp}</td>
-              <td style={tdStyle}>CH{a.channel}</td>
-              <td style={tdStyle}>
-                <span style={{
-                  padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.85rem',
-                  background: a.alert_type === 'threshold' ? '#ef4444' : '#f59e0b',
-                  color: '#fff'
-                }}>
-                  {a.alert_type === 'threshold' ? '閾値超過' : '傾向異常'}
-                </span>
-              </td>
-              <td style={tdStyle}>{a.value}℃</td>
-              <td style={tdStyle}>{a.message}</td>
-              <td style={tdStyle}>
-                {a.predicted_steps != null
-                  ? <span style={{ color: '#b45309', fontWeight: 'bold' }}>約{a.predicted_steps}ステップ後</span>
-                  : '—'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <Pagination page={alertPage} total={alertTotal} onChange={setAlertPage} />
     </div>
   )
 }
