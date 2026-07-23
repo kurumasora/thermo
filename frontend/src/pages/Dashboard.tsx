@@ -19,13 +19,14 @@ type Config = {
 }
 
 const POLL_INTERVAL_MS = 10 * 60 * 1000
-const MEAS_PAGE_SIZE = 20
+const PAGE_SIZE_OPTIONS = [20, 50, 100]
 
 function Dashboard() {
   const [measurements, setMeasurements] = useState<Measurement[]>([])
   const [configs, setConfigs] = useState<Config[]>([])
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [measPage, setMeasPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
 
   const fetchData = () => {
     Promise.all([
@@ -63,8 +64,8 @@ function Dashboard() {
     CH2: m.temp_ch2,
   }))
 
-  const measSlice = measurements.slice((measPage - 1) * MEAS_PAGE_SIZE, measPage * MEAS_PAGE_SIZE)
-  const measTotal = Math.ceil(measurements.length / MEAS_PAGE_SIZE)
+  const measSlice = measurements.slice((measPage - 1) * pageSize, measPage * pageSize)
+  const measTotal = Math.ceil(measurements.length / pageSize)
 
   return (
     <div style={{ padding: '1.5rem' }}>
@@ -112,7 +113,19 @@ function Dashboard() {
         </ResponsiveContainer>
       </div>
 
-      <h2>計測データ一覧</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+        <h2 style={{ margin: 0 }}>計測データ一覧</h2>
+        <label style={{ fontSize: '0.9rem', color: '#64748b' }}>
+          表示件数：
+          <select
+            value={pageSize}
+            onChange={e => { setPageSize(Number(e.target.value)); setMeasPage(1) }}
+            style={{ marginLeft: '0.25rem' }}
+          >
+            {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}件</option>)}
+          </select>
+        </label>
+      </div>
       <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '0.5rem' }}>
         <thead>
           <tr>

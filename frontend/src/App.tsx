@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard'
 import Alerts from './pages/Alerts'
 import Settings from './pages/Settings'
 import Admin from './pages/Admin'
+import ChangePassword from './pages/ChangePassword'
 import Navbar from './components/Navbar'
 import RequireAuth from './components/RequireAuth'
 
@@ -18,6 +19,7 @@ function Layout() {
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="/alerts" element={<RequireAuth><Alerts /></RequireAuth>} />
+        <Route path="/change-password" element={<RequireAuth><ChangePassword /></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth requireAdmin><Settings /></RequireAuth>} />
         <Route path="/admin" element={<RequireAuth requireAdmin><Admin /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" />} />

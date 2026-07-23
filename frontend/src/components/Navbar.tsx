@@ -36,6 +36,7 @@ function Navbar() {
           <Link to="/admin" style={{ color: '#cbd5e1', textDecoration: 'none' }}>ユーザー管理</Link>
         </>
       )}
+      <Link to="/change-password" style={{ color: '#cbd5e1', textDecoration: 'none', fontSize: '0.9rem' }}>パスワード変更</Link>
       <button onClick={handleLogout} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '0.25rem 0.75rem', borderRadius: '4px', cursor: 'pointer' }}>
         ログアウト
       </button>
