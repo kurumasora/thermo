@@ -39,6 +39,8 @@ function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [measPage, setMeasPage] = useState(1)
   const [alertPage, setAlertPage] = useState(1)
+  const [filterType, setFilterType] = useState<'all' | 'threshold' | 'trend'>('all')
+  const [filterChannel, setFilterChannel] = useState<'all' | '1' | '2'>('all')
 
   const fetchData = () => {
     Promise.all([
@@ -81,8 +83,14 @@ function Dashboard() {
 
   const measSlice = measurements.slice((measPage - 1) * MEAS_PAGE_SIZE, measPage * MEAS_PAGE_SIZE)
   const measTotal = Math.ceil(measurements.length / MEAS_PAGE_SIZE)
-  const alertSlice = alerts.slice((alertPage - 1) * ALERT_PAGE_SIZE, alertPage * ALERT_PAGE_SIZE)
-  const alertTotal = Math.ceil(alerts.length / ALERT_PAGE_SIZE)
+
+  const filteredAlerts = alerts.filter(a => {
+    if (filterType !== 'all' && a.alert_type !== filterType) return false
+    if (filterChannel !== 'all' && a.channel !== Number(filterChannel)) return false
+    return true
+  })
+  const alertSlice = filteredAlerts.slice((alertPage - 1) * ALERT_PAGE_SIZE, alertPage * ALERT_PAGE_SIZE)
+  const alertTotal = Math.ceil(filteredAlerts.length / ALERT_PAGE_SIZE)
 
   return (
     <div style={{ padding: '1.5rem' }}>
@@ -157,6 +165,27 @@ function Dashboard() {
 
       {/* アラート履歴 */}
       <h2 style={{ marginTop: '2rem' }}>アラート履歴</h2>
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+        <label style={{ fontSize: '0.9rem' }}>
+          種別：
+          <select value={filterType} onChange={e => { setFilterType(e.target.value as typeof filterType); setAlertPage(1) }} style={{ marginLeft: '0.25rem' }}>
+            <option value="all">すべて</option>
+            <option value="threshold">閾値超過</option>
+            <option value="trend">傾向異常</option>
+          </select>
+        </label>
+        <label style={{ fontSize: '0.9rem' }}>
+          チャンネル：
+          <select value={filterChannel} onChange={e => { setFilterChannel(e.target.value as typeof filterChannel); setAlertPage(1) }} style={{ marginLeft: '0.25rem' }}>
+            <option value="all">すべて</option>
+            <option value="1">CH1</option>
+            <option value="2">CH2</option>
+          </select>
+        </label>
+        <span style={{ fontSize: '0.85rem', color: '#64748b', alignSelf: 'center' }}>
+          {filteredAlerts.length}件
+        </span>
+      </div>
       <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '0.5rem' }}>
         <thead>
           <tr>
