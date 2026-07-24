@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from backend.interfaces import MeasurementData
 
 JST = timezone(timedelta(hours=9))
+UTC = timezone.utc
 
 class TrendJudgement:
     def __init__(self, slope_threshold: float, upper: float, lower: float, interval_minutes: int = 10):
@@ -31,7 +32,8 @@ class TrendJudgement:
                 limit = self.lower
 
             minutes_to_threshold = steps_to_threshold * self.interval_minutes
-            predicted_dt = datetime.now(JST) + timedelta(minutes=minutes_to_threshold)
+            now_jst = datetime.now(JST)
+            predicted_dt = now_jst + timedelta(minutes=minutes_to_threshold)
             predicted_str = predicted_dt.strftime('%Y/%m/%d %H:%M')
 
             if minutes_to_threshold >= 60:
@@ -47,6 +49,9 @@ class TrendJudgement:
             return {
                 "is_abnormal": True,
                 "message": message,
-                "predicted_steps": round(float(steps_to_threshold), 1)
+                "predicted_steps": round(float(steps_to_threshold), 1),
+                "direction": "up" if slope > 0 else "down",
+                "limit_value": float(limit),
+                "predicted_at": predicted_dt.astimezone(UTC),
             }
         return {"is_abnormal": False, "message": "", "predicted_steps": None}

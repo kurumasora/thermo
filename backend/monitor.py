@@ -5,6 +5,7 @@ import logging
 from backend.devices.ondotori import OndotoriDevice
 from backend.judgement.threshold import ThresholdJudgement
 from backend.judgement.trend import TrendJudgement
+from backend.judgement.prediction import is_prediction_tracking_enabled, save_prediction, verify_past_predictions
 from backend.notification.webhook import TeamsWebhook
 from backend.db import get_connection
 
@@ -85,11 +86,24 @@ def main():
                     webhook = TeamsWebhook()
                     webhook.send(trend_result["message"])
                     cur.execute(
-                        "INSERT INTO alert_history (timestamp, channel, alert_type, value, message, predicted_steps) VALUES (%s, %s, %s, %s, %s, %s)",
+                        "INSERT INTO alert_history (timestamp, channel, alert_type, value, message, predicted_steps) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
                         (data.timestamp, data.channel, "trend", data.value, trend_result["message"], trend_result["predicted_steps"])
                     )
+                    alert_id = cur.fetchone()[0]
                     conn.commit()
                     logger.warning(f"傾向異常アラート: {trend_result['message']}")
+
+                    if is_prediction_tracking_enabled():
+                        save_prediction(
+                            alert_history_id=alert_id,
+                            channel=data.channel,
+                            direction=trend_result["direction"],
+                            limit_value=trend_result["limit_value"],
+                            predicted_at=trend_result["predicted_at"],
+                        )
+
+        if is_prediction_tracking_enabled():
+            verify_past_predictions()
 
     except Exception as e:
         logger.error(f"monitor.py 実行エラー: {e}", exc_info=True)

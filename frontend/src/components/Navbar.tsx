@@ -34,6 +34,7 @@ function Navbar() {
         <>
           <Link to="/settings" style={{ color: '#cbd5e1', textDecoration: 'none' }}>閾値設定</Link>
           <Link to="/admin" style={{ color: '#cbd5e1', textDecoration: 'none' }}>ユーザー管理</Link>
+          <Link to="/prediction" style={{ color: '#cbd5e1', textDecoration: 'none' }}>予測精度</Link>
         </>
       )}
       <Link to="/change-password" style={{ color: '#cbd5e1', textDecoration: 'none', fontSize: '0.9rem' }}>パスワード変更</Link>
