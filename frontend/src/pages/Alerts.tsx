@@ -66,7 +66,7 @@ function Alerts() {
             <th style={thStyle}>種別</th>
             <th style={thStyle}>値</th>
             <th style={thStyle}>メッセージ</th>
-            <th style={thStyle}>閾値到達予測</th>
+            <th style={thStyle}>閾値到達まで</th>
           </tr>
         </thead>
         <tbody>
@@ -87,7 +87,14 @@ function Alerts() {
               <td style={tdStyle}>{a.message}</td>
               <td style={tdStyle}>
                 {a.predicted_steps != null
-                  ? <span style={{ color: '#b45309', fontWeight: 'bold' }}>約{a.predicted_steps}ステップ後</span>
+                  ? <span style={{ color: '#b45309', fontWeight: 'bold' }}>
+                      {(() => {
+                        const mins = a.predicted_steps * 10
+                        return mins >= 60
+                          ? `約${(mins / 60).toFixed(1)}時間後`
+                          : `約${Math.round(mins)}分後`
+                      })()}
+                    </span>
                   : '—'}
               </td>
             </tr>
