@@ -12,17 +12,17 @@ class TrendJudgement:
             return {"is_abnormal": False, "message": "", "predicted_time": None}
         
         x = np.array(range(len(data_list)))
-        y = np.array([d.value for d in data_list])
+        y = np.array([d.value for d in reversed(data_list)])
         slope, intercept = np.polyfit(x, y, 1)
 
         if abs(slope) > self.slope_threshold:
-            current_value = y[-1]
+            current_value = y[-1]  # y は昇順（古→新）なので最後が最新値
             if slope > 0:
                 steps_to_threshold = (self.upper - current_value) / slope
                 direction = '上昇'
                 limit = self.upper
             else:
-                steps_to_threshold = (self.upper - current_value) / slope
+                steps_to_threshold = (self.lower - current_value) / slope
                 direction = '下降'
                 limit = self.lower
             
