@@ -53,7 +53,7 @@ function Settings() {
             <input type="number" value={s.upper_threshold} onChange={e => setSettings(settings.map(x => x.channel === s.channel ? { ...x, upper_threshold: Number(e.target.value) } : x))} />
             <label>下限閾値 (℃)</label>
             <input type="number" value={s.lower_threshold} onChange={e => setSettings(settings.map(x => x.channel === s.channel ? { ...x, lower_threshold: Number(e.target.value) } : x))} />
-            <label>傾き閾値 (℃/step)</label>
+            <label>傾き閾値 (℃/10分)</label>
             <input type="number" value={s.slope_threshold} onChange={e => setSettings(settings.map(x => x.channel === s.channel ? { ...x, slope_threshold: Number(e.target.value) } : x))} />
             <label>回帰データ数</label>
             <input type="number" value={s.regression_count} onChange={e => setSettings(settings.map(x => x.channel === s.channel ? { ...x, regression_count: Number(e.target.value) } : x))} />
