@@ -38,7 +38,8 @@
 | FR-01 | データ取得 | 共通インターフェース（IMeasurementDevice）経由で温度データを取得する |
 | FR-02 | データ蓄積・管理 | タイムスタンプ付きで時系列データをPostgreSQLに保存する |
 | FR-03 | 閾値異常検知 | 下限値 ≤ 計測値 ≤ 上限値 を外れた時点で即時アラートを発報する |
-| FR-04 | 傾向異常検知 | 直近データに一次回帰を適用し，傾き（変化速度）が設定値を超えた場合に予兆アラートを発報する．また回帰直線から閾値到達までの予測時刻を算出してダッシュボードに表示する（ON/OFF切替可能） |
+| FR-04 | 傾向異常検知 | 直近データに一次回帰を適用し，傾き（変化速度）が設定値を超えた場合に予兆アラートを発報する．実タイムスタンプを使った回帰とR²フィルター（デフォルト0.75）により誤検知を抑制する．閾値到達予測時刻（例：約33分後 2026/07/25 05:15）を通知・履歴に表示する（ON/OFF切替可能） |
+| FR-09 | 予測精度追跡 | 傾向異常発報時に予測到達時刻をDBに保存し，予測時刻到達後に実測値と照合して「的中／外れ」を自動記録する．管理者は精度レポート画面で的中率・予測履歴を確認できる（ON/OFF切替可能） |
 | FR-05 | 即時通知 | アラート発生時点でWebhookにより即時通知する |
 | FR-06 | ログイン認証 | ID・パスワードによるログイン認証を行い，未認証ユーザーはログイン画面のみ表示する |
 | FR-07 | ロールベースアクセス制御 | 管理者と一般ユーザーでアクセスできる画面を制限する |
@@ -62,15 +63,25 @@
 ## 6．マスタ管理項目
 以下の設定値はすべてPostgreSQLで管理し，プログラム内にハードコーディングしない．
 
+### master_config テーブル（チャンネルごと）
 | 設定項目 | 用途 |
 |---|---|
 | 上限閾値 | 閾値異常判定の上限値 |
 | 下限閾値 | 閾値異常判定の下限値 |
-| 回帰傾き閾値 | 一次回帰の傾きの上限値（例：0.2℃/分） |
+| 回帰傾き閾値 | 一次回帰の傾きの上限値（℃/10分） |
 | 回帰対象データ数 | 回帰計算に使用する直近データの件数 |
 | 傾向監視 ON/OFF | 傾向異常検知機能の有効・無効 |
-| ユーザー情報 | ID・ハッシュ化パスワード・ロール |
-| Teams Webhook URL | 通知先URL（.envで管理し，コードにハードコーディングしない） |
+
+### system_settings テーブル（システム全体）
+| キー | 用途 |
+|---|---|
+| `prediction_tracking` | 傾向予測の精度追跡機能の有効・無効（管理者がUIから切替） |
+
+### その他
+| 項目 | 管理場所 |
+|---|---|
+| ユーザー情報（ID・ハッシュ化パスワード・ロール） | users テーブル |
+| Teams Webhook URL | .env（コードにハードコーディングしない） |
 
 ---
 
@@ -81,9 +92,9 @@
     ↕ HTTPS（サブドメイン経由）
 Nginx（リバースプロキシ）
     ├─ / → React（静的ファイル配信）
-    └─ /api/ → FastAPI :8000
+    └─ /api/ → FastAPI :8100
         ↕
-PostgreSQL（マスタ・アラート履歴・ユーザー情報）
+PostgreSQL（マスタ・アラート履歴・ユーザー情報・予測記録）
 
 【自動実行】
 cron → monitor.py
@@ -91,8 +102,9 @@ cron → monitor.py
 PostgreSQL
     ↓ 判定
 threshold.py / trend.py
-    ↓ アラート検知
-webhook.py → Microsoft Teams
+    ↓ アラート検知時
+    ├─ webhook.py → Microsoft Teams
+    └─ prediction.py → trend_predictions テーブルに予測保存・検証
 ```
 
 ---
@@ -104,42 +116,50 @@ project/
 │   ├─ main.py                  # FastAPI アプリ本体
 │   ├─ monitor.py               # cron で実行する監視スクリプト
 │   ├─ interfaces.py            # IMeasurementDevice 定義
+│   ├─ db.py                    # DB接続（psycopg2）
 │   ├─ devices/
 │   │   └─ ondotori.py          # おんどとり取得処理
 │   ├─ judgement/
 │   │   ├─ threshold.py         # 閾値異常判定
-│   │   └─ trend.py             # 傾向異常判定
+│   │   ├─ trend.py             # 傾向異常判定（実時刻回帰・R²フィルター）
+│   │   └─ prediction.py        # 予測保存・検証ロジック
 │   ├─ notification/
 │   │   └─ webhook.py           # Webhook 通知
-│   ├─ master/
-│   │   └─ config.py            # DB からマスタ読み込み
-│   ├─ models/
-│   │   └─ schema.py            # DB テーブル定義（SQLAlchemy）
 │   ├─ auth/
-│   │   ├─ router.py            # ログイン・ログアウト API
-│   │   └─ utils.py             # パスワードハッシュ化・セッション管理
+│   │   ├─ router.py            # ログイン・パスワード変更 API
+│   │   └─ utils.py             # パスワードハッシュ化・JWT管理
 │   ├─ routers/
 │   │   ├─ settings.py          # 閾値設定の API エンドポイント
 │   │   ├─ status.py            # 現在値・アラート履歴の API
-│   │   └─ admin.py             # ユーザー管理の API エンドポイント
+│   │   ├─ admin.py             # ユーザー管理の API エンドポイント
+│   │   └─ prediction.py        # 予測精度レポート・ON/OFF切替 API
+│   ├─ migrations/
+│   │   └─ 002_trend_predictions.sql  # trend_predictions・system_settings テーブル
 │   └─ requirements.txt
 │
-└─ frontend/
-    ├─ src/
-    │   ├─ App.tsx
-    │   ├─ pages/
-    │   │   ├─ Login.tsx         # ログイン画面
-    │   │   ├─ Dashboard.tsx     # 現在値・アラート履歴画面
-    │   │   ├─ Settings.tsx      # 閾値設定画面
-    │   │   └─ Admin.tsx         # ユーザー管理画面
-    │   ├─ components/
-    │   │   ├─ ThresholdForm.tsx # 閾値入力フォーム
-    │   │   ├─ AlertHistory.tsx  # アラート履歴テーブル
-    │   │   └─ UserTable.tsx     # ユーザー一覧テーブル
-    │   └─ api/
-    │       └─ client.ts         # FastAPI へのリクエスト処理
-    ├─ package.json
-    └─ tsconfig.json
+├─ frontend/
+│   ├─ src/
+│   │   ├─ App.tsx
+│   │   ├─ pages/
+│   │   │   ├─ Login.tsx             # ログイン画面
+│   │   │   ├─ Dashboard.tsx         # 現在値カード・温度グラフ・計測テーブル
+│   │   │   ├─ Alerts.tsx            # アラート履歴（フィルター・ページネーション）
+│   │   │   ├─ Settings.tsx          # 閾値設定画面
+│   │   │   ├─ Admin.tsx             # ユーザー管理画面
+│   │   │   ├─ ChangePassword.tsx    # パスワード変更画面
+│   │   │   └─ PredictionReport.tsx  # 傾向予測 精度レポート画面
+│   │   ├─ components/
+│   │   │   ├─ Navbar.tsx            # ナビゲーションバー（ロール別表示制御）
+│   │   │   └─ RequireAuth.tsx       # ルートガード（JWT期限チェック）
+│   │   ├─ utils/
+│   │   │   └─ format.ts             # タイムスタンプ統一フォーマット関数
+│   │   └─ api/
+│   │       └─ client.ts             # axiosインスタンス（401自動リダイレクト）
+│   ├─ package.json
+│   └─ tsconfig.json
+│
+├─ test_alert.py                # アラート通知テストスクリプト
+└─ monitor.log                  # 監視ログ（.gitignore対象）
 ```
 
 ---
@@ -179,9 +199,12 @@ class IMeasurementDevice(ABC):
 | パス | 画面 | アクセス権限 |
 |---|---|---|
 | `/login` | ログイン画面 | 全員（未認証） |
-| `/` | ダッシュボード | ログイン済み全員 |
+| `/` | ダッシュボード（現在値カード・温度グラフ・計測テーブル） | ログイン済み全員 |
+| `/alerts` | アラート履歴（種別・チャンネルフィルター，ページネーション） | ログイン済み全員 |
+| `/change-password` | パスワード変更 | ログイン済み全員 |
 | `/settings` | 閾値設定画面 | 管理者のみ |
 | `/admin` | ユーザー管理画面 | 管理者のみ |
+| `/prediction` | 傾向予測 精度レポート | 管理者のみ |
 
 ### ユーザー管理画面（/admin）でできること
 | 操作 | 内容 |
@@ -206,7 +229,7 @@ class IMeasurementDevice(ABC):
 | ドメイン | サブドメイン（例：thermo.example.com） |
 | HTTPS | Let's Encrypt（certbot） |
 | 外部公開ポート | 80（HTTP），443（HTTPS） |
-| 内部ポート | FastAPI :8000，PostgreSQL :3306（外部非公開） |
+| 内部ポート | FastAPI :8100，PostgreSQL :5432（外部非公開） |
 | クローラー対策 | robots.txt（全クロール拒否） |
 
 ---
@@ -317,3 +340,4 @@ feature/xxx   # 機能ごとの作業ブランチ（作業後はdevelopにマー
 | 1.2 | 2026-06-23 | ログイン認証・ロールベースアクセス制御・ユーザー管理要件を追加，インフラ構成を追加 |
 | 1.3 | 2026-06-30 | ナビゲーションバー・ルートガード・axiosインターセプター実装，HTTPS・robots.txt・uvicorn systemd化完了，傾向異常の閾値到達予測をダッシュボードに表示，ダッシュボードの自動更新・ページネーション追加，自己削除・自己降格防止，DBコネクションリーク修正，monitor.pyエラーログ追加 |
 | 1.4 | 2026-07-23 | 温度推移グラフ（recharts）・現在値カード追加，リクエスト前のJWTトークン期限チェック実装，アラート履歴フィルター（種別・チャンネル）追加 |
+| 1.5 | 2026-07-25 | アラート履歴を別タブページ（/alerts）に分離，パスワード変更画面（/change-password）追加，全タイムスタンプ表示を YYYY/MM/DD HH:mm 形式に統一（format.ts），ポート8000→8100変更，傾向異常の予測表示をステップ→時刻（例：約33分後 2026/07/25 05:15）に変更，傾向判定を実タイムスタンプ回帰・R²フィルター（0.75）に改善（誤検知抑制），傾向予測精度追跡機能追加（trend_predictionsテーブル・精度レポート画面 /prediction・管理者のみON/OFF切替），傾向判定のデータ並び順バグ修正・下降傾向の到達予測閾値バグ修正 |
