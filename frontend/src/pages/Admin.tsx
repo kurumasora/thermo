@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { jwtDecode } from 'jwt-decode'
 import client from '../api/client'
+import { formatTimestamp } from '../utils/format'
 
 interface TokenPayload {
   sub: string
@@ -118,7 +119,7 @@ function Admin() {
                     </select>
                   )}
                 </td>
-                <td style={tdStyle}>{u.created_at}</td>
+                <td style={tdStyle}>{formatTimestamp(u.created_at)}</td>
                 <td style={tdStyle}>
                   <input
                     type="password"

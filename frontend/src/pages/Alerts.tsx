@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import client from '../api/client'
+import { formatTimestamp } from '../utils/format'
 
 type Alert = {
   id: number
@@ -71,7 +72,7 @@ function Alerts() {
         <tbody>
           {slice.map(a => (
             <tr key={a.id} style={{ background: a.alert_type === 'threshold' ? '#fef2f2' : '#fffbeb' }}>
-              <td style={tdStyle}>{a.timestamp}</td>
+              <td style={tdStyle}>{formatTimestamp(a.timestamp)}</td>
               <td style={tdStyle}>CH{a.channel}</td>
               <td style={tdStyle}>
                 <span style={{
