@@ -1,16 +1,20 @@
 import numpy as np
+from datetime import datetime, timedelta, timezone
 from backend.interfaces import MeasurementData
 
+JST = timezone(timedelta(hours=9))
+
 class TrendJudgement:
-    def __init__(self, slope_threshold: float, upper: float, lower: float):
+    def __init__(self, slope_threshold: float, upper: float, lower: float, interval_minutes: int = 10):
         self.slope_threshold = slope_threshold
         self.upper = upper
         self.lower = lower
+        self.interval_minutes = interval_minutes
 
     def judge(self, data_list: list[MeasurementData]) -> dict:
         if len(data_list) < 2:
             return {"is_abnormal": False, "message": "", "predicted_time": None}
-        
+
         x = np.array(range(len(data_list)))
         y = np.array([d.value for d in reversed(data_list)])
         slope, intercept = np.polyfit(x, y, 1)
@@ -25,10 +29,24 @@ class TrendJudgement:
                 steps_to_threshold = (self.lower - current_value) / slope
                 direction = '下降'
                 limit = self.lower
-            
+
+            minutes_to_threshold = steps_to_threshold * self.interval_minutes
+            predicted_dt = datetime.now(JST) + timedelta(minutes=minutes_to_threshold)
+            predicted_str = predicted_dt.strftime('%Y/%m/%d %H:%M')
+
+            if minutes_to_threshold >= 60:
+                time_label = f"約{minutes_to_threshold / 60:.1f}時間後"
+            else:
+                time_label = f"約{int(minutes_to_threshold)}分後"
+
+            message = (
+                f"温度が{direction}傾向です（傾き：{slope:.2f}℃/ステップ）．"
+                f"{time_label}（{predicted_str}）に{limit}℃に達します"
+            )
+
             return {
                 "is_abnormal": True,
-                "message": f"温度が{direction}傾向です（傾き：{slope:.2f}℃/ステップ）．約{steps_to_threshold:.1f}ステップ後に{limit}℃に到達予測",
+                "message": message,
                 "predicted_steps": round(float(steps_to_threshold), 1)
             }
-        return {"is_abnormal": False, "message": "", "predicted_steps":None}
+        return {"is_abnormal": False, "message": "", "predicted_steps": None}

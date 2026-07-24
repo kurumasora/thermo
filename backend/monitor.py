@@ -78,7 +78,7 @@ def main():
                     for row in rows
                 ]
 
-                trend = TrendJudgement(slope_threshold=slope_threshold, upper=upper, lower=lower)
+                trend = TrendJudgement(slope_threshold=slope_threshold, upper=upper, lower=lower, interval_minutes=10)
                 trend_result = trend.judge(trend_data)
 
                 if trend_result["is_abnormal"]:
