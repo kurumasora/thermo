@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
-from backend.routers import status, settings, admin, prediction, sensors
+from backend.routers import status, settings, admin, prediction, sensors, notification
 from backend.auth import router as auth_router
 
 load_dotenv()
@@ -12,6 +12,7 @@ app.include_router(auth_router.router)
 app.include_router(admin.router)
 app.include_router(prediction.router)
 app.include_router(sensors.router)
+app.include_router(notification.router)
 
 @app.get("/api/health")
 def health():
