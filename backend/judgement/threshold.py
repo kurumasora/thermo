@@ -9,13 +9,13 @@ class ThresholdJudgement:
         if data.value > self.upper:
             return {
                 "is_abnormal":True,
-                "message": f"CH{data.channel}が上限閾値{self.upper}{data.unit}を超えました（現在値：{data.value}{data.unit}"
+                "message": f"CH{data.channel}が上限閾値{self.upper}{data.unit}を超えました（現在値：{data.value}{data.unit}）"
         
             }
         elif data.value < self.lower:
             return{
                 "is_abnormal":True,
-                "message": f"CH{data.channel}が下限閾値{self.lower}{data.unit}を下回りました（現在値：{data.value}{data.unit}"
+                "message": f"CH{data.channel}が下限閾値{self.lower}{data.unit}を下回りました（現在値：{data.value}{data.unit}）"
 
             }
         else:

@@ -5,10 +5,12 @@ from backend.auth.utils import hash_password, require_admin
 
 router = APIRouter()
 
+from typing import Literal
+
 class UserCreate(BaseModel):
     username: str
     password: str
-    role: str
+    role: Literal["user", "admin"] = "user"
 
 @router.get("/api/admin/users")
 def get_users(user: dict = Depends(require_admin)):
@@ -69,7 +71,7 @@ def delete_user(user_id: int, user: dict = Depends(require_admin)):
         conn.close()
 
 class RoleUpdate(BaseModel):
-    role: str
+    role: Literal["user", "admin"]
 
 class PasswordReset(BaseModel):
     password: str
@@ -97,6 +99,9 @@ def reset_password(user_id: int, body: PasswordReset, user: dict = Depends(requi
     conn = get_connection()
     try:
         cur = conn.cursor()
+        cur.execute("SELECT id FROM users WHERE id = %s", (user_id,))
+        if cur.fetchone() is None:
+            raise HTTPException(status_code=404, detail="ユーザが存在しません")
         cur.execute(
             "UPDATE users SET hashed_password = %s WHERE id = %s",
             (hash_password(body.password), user_id)

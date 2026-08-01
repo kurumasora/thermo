@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import logging
+import os
 from backend.devices.ondotori import OndotoriDevice
 from backend.devices.dummy_sensor import DummyHumiditySensor
 from backend.judgement.threshold import ThresholdJudgement
@@ -10,8 +11,9 @@ from backend.judgement.prediction import is_prediction_tracking_enabled, save_pr
 from backend.notification.webhook import TeamsWebhook
 from backend.db import get_connection
 
+_log_path = os.environ.get("MONITOR_LOG_PATH", "monitor.log")
 logging.basicConfig(
-    filename="/home/kuruma/thermo/monitor.log",
+    filename=_log_path,
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
 )
@@ -99,14 +101,16 @@ def main():
                 threshold = ThresholdJudgement(upper=upper, lower=lower)
                 result = threshold.judge(data)
                 if result["is_abnormal"]:
-                    webhook = TeamsWebhook()
-                    webhook.send(result["message"])
                     cur.execute(
                         "INSERT INTO alert_history (timestamp, sensor_channel_id, alert_type, value, message) VALUES (%s, %s, %s, %s, %s)",
                         (data.timestamp, channel_id, "threshold", data.value, result["message"])
                     )
                     conn.commit()
                     logger.warning(f"閾値異常: {result['message']}")
+                    try:
+                        TeamsWebhook().send(result["message"])
+                    except Exception as e:
+                        logger.error(f"Teams通知エラー（閾値）: {e}")
 
                 # 傾向異常判定
                 if trend_monitor:
@@ -124,15 +128,17 @@ def main():
                     trend_result = trend.judge(trend_data)
 
                     if trend_result["is_abnormal"]:
-                        webhook = TeamsWebhook()
-                        webhook.send(trend_result["message"])
                         cur.execute(
                             "INSERT INTO alert_history (timestamp, sensor_channel_id, alert_type, value, message, predicted_steps) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
                             (data.timestamp, channel_id, "trend", data.value, trend_result["message"], trend_result["predicted_steps"])
                         )
                         alert_id = cur.fetchone()[0]
                         conn.commit()
-                        logger.warning(f"傾向異常: {trend_result['message']}")
+                        logger.warning(f"傾向異常アラート: {trend_result['message']}")
+                        try:
+                            TeamsWebhook().send(trend_result["message"])
+                        except Exception as e:
+                            logger.error(f"Teams通知エラー（傾向）: {e}")
 
                         if is_prediction_tracking_enabled():
                             save_prediction(
@@ -148,6 +154,11 @@ def main():
 
     except Exception as e:
         logger.error(f"monitor.py 実行エラー: {e}", exc_info=True)
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         raise
     finally:
         if conn is not None:
