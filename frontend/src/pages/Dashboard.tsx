@@ -3,6 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer
 } from 'recharts'
 import client from '../api/client'
+import { formatTimestamp } from '../utils/format'
 
 type Measurement = {
   id: number
@@ -59,7 +60,7 @@ function Dashboard() {
     : 'normal'
 
   const graphData = [...measurements].reverse().slice(-24).map(m => ({
-    time: m.timestamp.slice(5, 16).replace('T', ' '),
+    time: formatTimestamp(m.timestamp).slice(5),  // MM/DD HH:mm
     CH1: m.temp_ch1,
     CH2: m.temp_ch2,
   }))
@@ -137,7 +138,7 @@ function Dashboard() {
         <tbody>
           {measSlice.map(m => (
             <tr key={m.id}>
-              <td style={tdStyle}>{m.timestamp}</td>
+              <td style={tdStyle}>{formatTimestamp(m.timestamp)}</td>
               <td style={tdStyle}>{m.temp_ch1}℃</td>
               <td style={tdStyle}>{m.temp_ch2}℃</td>
             </tr>
