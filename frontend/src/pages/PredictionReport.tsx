@@ -13,7 +13,8 @@ type Summary = {
 
 type Record = {
   id: number
-  channel: number
+  channel_name: string
+  sensor_name: string
   direction: string
   limit_value: number
   predicted_at: string
@@ -100,7 +101,7 @@ function PredictionReport() {
         <thead>
           <tr>
             <th style={thStyle}>発報日時</th>
-            <th style={thStyle}>CH</th>
+            <th style={thStyle}>センサ / チャンネル</th>
             <th style={thStyle}>方向</th>
             <th style={thStyle}>予測到達閾値</th>
             <th style={thStyle}>予測到達時刻</th>
@@ -112,7 +113,7 @@ function PredictionReport() {
           {records.map(r => (
             <tr key={r.id} style={{ background: r.outcome === 'hit' ? '#f0fdf4' : r.outcome === 'miss' ? '#fef2f2' : undefined }}>
               <td style={tdStyle}>{formatTimestamp(r.created_at)}</td>
-              <td style={tdStyle}>CH{r.channel}</td>
+              <td style={tdStyle}>{r.sensor_name}<br /><span style={{ fontSize: '0.8rem', color: '#64748b' }}>{r.channel_name}</span></td>
               <td style={tdStyle}>{r.direction === 'up' ? '↑ 上昇' : '↓ 下降'}</td>
               <td style={tdStyle}>{r.limit_value}℃</td>
               <td style={tdStyle}>{formatTimestamp(r.predicted_at)}</td>

@@ -5,7 +5,10 @@ import { formatTimestamp } from '../utils/format'
 type Alert = {
   id: number
   timestamp: string
-  channel: number
+  sensor_channel_id: number
+  channel_name: string
+  unit: string
+  sensor_name: string
   alert_type: string
   value: number
   message: string
@@ -17,16 +20,18 @@ const PAGE_SIZE = 20
 function Alerts() {
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [filterType, setFilterType] = useState<'all' | 'threshold' | 'trend'>('all')
-  const [filterChannel, setFilterChannel] = useState<'all' | '1' | '2'>('all')
+  const [filterSensor, setFilterSensor] = useState<string>('all')
   const [page, setPage] = useState(1)
 
   useEffect(() => {
     client.get('/api/alerts').then(res => setAlerts(res.data))
   }, [])
 
+  const sensorNames = [...new Set(alerts.map(a => a.sensor_name))]
+
   const filtered = alerts.filter(a => {
     if (filterType !== 'all' && a.alert_type !== filterType) return false
-    if (filterChannel !== 'all' && a.channel !== Number(filterChannel)) return false
+    if (filterSensor !== 'all' && a.sensor_name !== filterSensor) return false
     return true
   })
   const slice = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -46,68 +51,54 @@ function Alerts() {
           </select>
         </label>
         <label style={{ fontSize: '0.9rem' }}>
-          チャンネル：
-          <select value={filterChannel} onChange={e => { setFilterChannel(e.target.value as typeof filterChannel); setPage(1) }} style={{ marginLeft: '0.25rem' }}>
+          センサ：
+          <select value={filterSensor} onChange={e => { setFilterSensor(e.target.value); setPage(1) }} style={{ marginLeft: '0.25rem' }}>
             <option value="all">すべて</option>
-            <option value="1">CH1</option>
-            <option value="2">CH2</option>
+            {sensorNames.map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </label>
-        <span style={{ fontSize: '0.85rem', color: '#64748b', alignSelf: 'center' }}>
-          {filtered.length}件
-        </span>
+        <span style={{ fontSize: '0.85rem', color: '#64748b', alignSelf: 'center' }}>{filtered.length}件</span>
       </div>
 
-      <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '0.5rem' }}>
-        <thead>
-          <tr>
-            <th style={thStyle}>タイムスタンプ</th>
-            <th style={thStyle}>CH</th>
-            <th style={thStyle}>種別</th>
-            <th style={thStyle}>値</th>
-            <th style={thStyle}>メッセージ</th>
-            <th style={thStyle}>閾値到達まで</th>
-          </tr>
-        </thead>
-        <tbody>
-          {slice.map(a => (
-            <tr key={a.id} style={{ background: a.alert_type === 'threshold' ? '#fef2f2' : '#fffbeb' }}>
-              <td style={tdStyle}>{formatTimestamp(a.timestamp)}</td>
-              <td style={tdStyle}>CH{a.channel}</td>
-              <td style={tdStyle}>
-                <span style={{
-                  padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.85rem',
-                  background: a.alert_type === 'threshold' ? '#ef4444' : '#f59e0b',
-                  color: '#fff'
-                }}>
-                  {a.alert_type === 'threshold' ? '閾値超過' : '傾向異常'}
-                </span>
-              </td>
-              <td style={tdStyle}>{a.value}℃</td>
-              <td style={tdStyle}>{a.message}</td>
-              <td style={tdStyle}>
-                {a.predicted_steps != null
-                  ? <span style={{ color: '#b45309', fontWeight: 'bold' }}>
-                      {(() => {
-                        const mins = a.predicted_steps * 10
-                        return mins >= 60
-                          ? `約${(mins / 60).toFixed(1)}時間後`
-                          : `約${Math.round(mins)}分後`
-                      })()}
-                    </span>
-                  : '—'}
-              </td>
-            </tr>
-          ))}
-          {slice.length === 0 && (
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '0.5rem' }}>
+          <thead>
             <tr>
-              <td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: '#64748b' }}>
-                該当するアラートはありません
-              </td>
+              <th style={thStyle}>タイムスタンプ</th>
+              <th style={thStyle}>センサ / チャンネル</th>
+              <th style={thStyle}>種別</th>
+              <th style={thStyle}>値</th>
+              <th style={thStyle}>メッセージ</th>
+              <th style={thStyle}>閾値到達まで</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {slice.map(a => (
+              <tr key={a.id} style={{ background: a.alert_type === 'threshold' ? '#fef2f2' : '#fffbeb' }}>
+                <td style={tdStyle}>{formatTimestamp(a.timestamp)}</td>
+                <td style={tdStyle}>{a.sensor_name}<br /><span style={{ fontSize: '0.8rem', color: '#64748b' }}>{a.channel_name}</span></td>
+                <td style={tdStyle}>
+                  <span style={{ padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.85rem', background: a.alert_type === 'threshold' ? '#ef4444' : '#f59e0b', color: '#fff' }}>
+                    {a.alert_type === 'threshold' ? '閾値超過' : '傾向異常'}
+                  </span>
+                </td>
+                <td style={tdStyle}>{a.value}{a.unit}</td>
+                <td style={tdStyle}>{a.message}</td>
+                <td style={tdStyle}>
+                  {a.predicted_steps != null
+                    ? <span style={{ color: '#b45309', fontWeight: 'bold' }}>
+                        {(() => { const m = a.predicted_steps * 10; return m >= 60 ? `約${(m / 60).toFixed(1)}時間後` : `約${Math.round(m)}分後` })()}
+                      </span>
+                    : '—'}
+                </td>
+              </tr>
+            ))}
+            {slice.length === 0 && (
+              <tr><td colSpan={6} style={{ ...tdStyle, textAlign: 'center', color: '#64748b' }}>該当するアラートはありません</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {total > 1 && (
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -120,11 +111,7 @@ function Alerts() {
   )
 }
 
-const thStyle: React.CSSProperties = {
-  border: '1px solid #ccc', padding: '0.5rem', background: '#f1f5f9', textAlign: 'left',
-}
-const tdStyle: React.CSSProperties = {
-  border: '1px solid #ccc', padding: '0.5rem',
-}
+const thStyle: React.CSSProperties = { border: '1px solid #ccc', padding: '0.5rem', background: '#f1f5f9', textAlign: 'left' }
+const tdStyle: React.CSSProperties = { border: '1px solid #ccc', padding: '0.5rem' }
 
 export default Alerts
