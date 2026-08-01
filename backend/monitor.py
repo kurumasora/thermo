@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import logging
+import os
 from backend.devices.ondotori import OndotoriDevice
 from backend.devices.dummy_sensor import DummyHumiditySensor
 from backend.judgement.threshold import ThresholdJudgement
@@ -10,8 +11,9 @@ from backend.judgement.prediction import is_prediction_tracking_enabled, save_pr
 from backend.notification.webhook import TeamsWebhook
 from backend.db import get_connection
 
+_log_path = os.environ.get("MONITOR_LOG_PATH", "monitor.log")
 logging.basicConfig(
-    filename="/home/kuruma/thermo/monitor.log",
+    filename=_log_path,
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
 )

@@ -4,6 +4,7 @@ import { jwtDecode } from 'jwt-decode'
 interface TokenPayload {
   sub: string
   role: string
+  exp: number
 }
 
 function Navbar() {
@@ -14,7 +15,10 @@ function Navbar() {
   if (token) {
     try {
       const payload = jwtDecode<TokenPayload>(token)
-      role = payload.role
+      const isExpired = payload.exp * 1000 < Date.now()
+      if (!isExpired) {
+        role = payload.role
+      }
     } catch {
       // トークン不正な場合は無視
     }
