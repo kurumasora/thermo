@@ -8,6 +8,7 @@ from backend.judgement.threshold import ThresholdJudgement
 from backend.judgement.trend import TrendJudgement
 from backend.judgement.prediction import is_prediction_tracking_enabled, save_prediction, verify_past_predictions
 from backend.notification.webhook import TeamsWebhook
+from backend.notification.email import load_email_notifier
 from backend.db import get_connection
 
 _log_path = os.environ.get("MONITOR_LOG_PATH", "monitor.log")
@@ -18,20 +19,49 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+def send_notifications(message: str, sensor_webhook_url, webhook_enabled: bool,
+                       email_enabled: bool, email_recipients: list[str], email_notifier):
+    if webhook_enabled:
+        try:
+            TeamsWebhook(sensor_webhook_url).send(message)
+        except Exception as e:
+            logger.error(f"Teams通知エラー: {e}")
+
+    if email_enabled and email_notifier and email_recipients:
+        try:
+            email_notifier.send(email_recipients, message)
+        except Exception as e:
+            logger.error(f"メール通知エラー: {e}")
+
+
 def main():
     conn = None
     try:
         conn = get_connection()
         cur = conn.cursor()
 
+        # SMTP設定を読み込む（未設定ならNone）
+        email_notifier = load_email_notifier(conn)
+
         # アクティブなセンサをDBから取得
-        cur.execute("SELECT id, sensor_key, name, webhook_url FROM sensors WHERE active = TRUE")
+        cur.execute("""
+            SELECT id, sensor_key, name, webhook_url, webhook_enabled, email_enabled
+            FROM sensors WHERE active = TRUE
+        """)
         active_sensors = cur.fetchall()
 
-        for sensor_id, sensor_key, sensor_name, sensor_webhook_url in active_sensors:
+        for sensor_id, sensor_key, sensor_name, sensor_webhook_url, webhook_enabled, email_enabled in active_sensors:
             if sensor_key not in SENSOR_MAP:
                 logger.warning(f"未登録センサ: {sensor_key}")
                 continue
+
+            # メール通知先を取得
+            cur.execute(
+                "SELECT email FROM sensor_email_recipients WHERE sensor_id = %s",
+                (sensor_id,)
+            )
+            email_recipients = [r[0] for r in cur.fetchall()]
 
             try:
                 device = SENSOR_MAP[sensor_key]()
@@ -99,10 +129,10 @@ def main():
                     )
                     conn.commit()
                     logger.warning(f"閾値異常: {result['message']}")
-                    try:
-                        TeamsWebhook(sensor_webhook_url).send(result["message"])
-                    except Exception as e:
-                        logger.error(f"Teams通知エラー（閾値）: {e}")
+                    send_notifications(
+                        result["message"], sensor_webhook_url,
+                        webhook_enabled, email_enabled, email_recipients, email_notifier
+                    )
 
                 # 傾向異常判定
                 if trend_monitor:
@@ -127,10 +157,10 @@ def main():
                         alert_id = cur.fetchone()[0]
                         conn.commit()
                         logger.warning(f"傾向異常アラート: {trend_result['message']}")
-                        try:
-                            TeamsWebhook(sensor_webhook_url).send(trend_result["message"])
-                        except Exception as e:
-                            logger.error(f"Teams通知エラー（傾向）: {e}")
+                        send_notifications(
+                            trend_result["message"], sensor_webhook_url,
+                            webhook_enabled, email_enabled, email_recipients, email_notifier
+                        )
 
                         if is_prediction_tracking_enabled():
                             save_prediction(

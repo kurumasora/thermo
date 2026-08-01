@@ -73,13 +73,36 @@ type PredictionRecord = {
   alert_message: string
 }
 
-type Tab = 'sensor' | 'threshold' | 'user' | 'prediction'
+type SmtpConfig = {
+  host: string | null
+  port: number
+  username: string | null
+  from_address: string | null
+  password_set: boolean
+}
+
+type EmailRecipient = {
+  id: number
+  email: string
+}
+
+type NotificationSensor = {
+  id: number
+  name: string
+  webhook_url: string | null
+  webhook_enabled: boolean
+  email_enabled: boolean
+  recipients: EmailRecipient[]
+}
+
+type Tab = 'sensor' | 'threshold' | 'user' | 'prediction' | 'notification'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'sensor', label: 'センサ管理' },
   { key: 'threshold', label: '閾値設定' },
   { key: 'user', label: 'ユーザー管理' },
   { key: 'prediction', label: '予測精度' },
+  { key: 'notification', label: '通知設定' },
 ]
 
 function Admin() {
@@ -118,6 +141,7 @@ function Admin() {
       {tab === 'threshold' && <ThresholdTab />}
       {tab === 'user' && <UserTab />}
       {tab === 'prediction' && <PredictionTab />}
+      {tab === 'notification' && <NotificationTab />}
     </div>
   )
 }
@@ -135,7 +159,6 @@ const emptyChannel = (): ChannelInput => ({
 
 function SensorTab() {
   const [sensors, setSensors] = useState<SensorItem[]>([])
-  const [webhookInputs, setWebhookInputs] = useState<Record<number, string>>({})
   const [toast, setToast] = useState<string | null>(null)
   const [sensorMapKeys, setSensorMapKeys] = useState<string[]>([])
 
@@ -147,12 +170,7 @@ function SensorTab() {
   const [addError, setAddError] = useState<string | null>(null)
 
   const fetchSensors = () =>
-    client.get('/api/sensors').then(res => {
-      setSensors(res.data)
-      const inputs: Record<number, string> = {}
-      res.data.forEach((s: SensorItem) => { inputs[s.id] = s.webhook_url ?? '' })
-      setWebhookInputs(inputs)
-    })
+    client.get('/api/sensors').then(res => setSensors(res.data))
 
   useEffect(() => {
     fetchSensors()
@@ -167,13 +185,6 @@ function SensorTab() {
   const handleToggle = async (id: number) => {
     const res = await client.put(`/api/admin/sensors/${id}/active`)
     setSensors(sensors.map(s => s.id === id ? { ...s, active: res.data.active } : s))
-  }
-
-  const handleSaveWebhook = async (id: number) => {
-    const url = webhookInputs[id] ?? ''
-    await client.put(`/api/admin/sensors/${id}/webhook`, { webhook_url: url || null })
-    setSensors(sensors.map(s => s.id === id ? { ...s, webhook_url: url || null } : s))
-    showToast('Webhook URLを保存しました')
   }
 
   const handleDelete = async (id: number, name: string) => {
@@ -302,7 +313,6 @@ function SensorTab() {
             <th style={thStyle}>センサ名</th>
             <th style={thStyle}>センサキー</th>
             <th style={thStyle}>状態</th>
-            <th style={thStyle}>Teams通知先（個別URL）</th>
             <th style={thStyle}>操作</th>
           </tr>
         </thead>
@@ -322,21 +332,6 @@ function SensorTab() {
                 <span style={{ color: s.active ? '#16a34a' : '#64748b', fontWeight: 'bold' }}>
                   {s.active ? '有効' : '無効'}
                 </span>
-              </td>
-              <td style={tdStyle}>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <input
-                    type="text"
-                    placeholder="未設定（共通URLを使用）"
-                    value={webhookInputs[s.id] ?? ''}
-                    onChange={e => setWebhookInputs(prev => ({ ...prev, [s.id]: e.target.value }))}
-                    style={{ width: '320px', fontSize: '0.8rem' }}
-                  />
-                  <button onClick={() => handleSaveWebhook(s.id)}>保存</button>
-                  {s.webhook_url && (
-                    <span style={{ fontSize: '0.75rem', color: '#16a34a' }}>✓ 設定済</span>
-                  )}
-                </div>
               </td>
               <td style={tdStyle}>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -666,6 +661,165 @@ function PredictionTab() {
           )}
         </tbody>
       </table>
+    </>
+  )
+}
+
+function NotificationTab() {
+  const [smtp, setSmtp] = useState<SmtpConfig>({ host: '', port: 587, username: '', from_address: '', password_set: false })
+  const [password, setPassword] = useState('')
+  const [sensors, setSensors] = useState<NotificationSensor[]>([])
+  const [newEmails, setNewEmails] = useState<Record<number, string>>({})
+  const [webhookInputs, setWebhookInputs] = useState<Record<number, string>>({})
+  const [toast, setToast] = useState<string | null>(null)
+
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
+
+  const fetchAll = async () => {
+    const [smtpRes, sensorRes] = await Promise.all([
+      client.get('/api/admin/smtp-config'),
+      client.get('/api/sensors'),
+    ])
+    setSmtp(smtpRes.data)
+    const webhooks: Record<number, string> = {}
+    const withRecipients = await Promise.all(
+      sensorRes.data.map(async (s: any) => {
+        const r = await client.get(`/api/admin/sensors/${s.id}/email-recipients`)
+        webhooks[s.id] = s.webhook_url ?? ''
+        return { ...s, recipients: r.data }
+      })
+    )
+    setSensors(withRecipients)
+    setWebhookInputs(webhooks)
+  }
+
+  useEffect(() => { fetchAll() }, [])
+
+  const handleSmtpSave = async () => {
+    await client.put('/api/admin/smtp-config', {
+      host: smtp.host, port: smtp.port, username: smtp.username,
+      from_address: smtp.from_address,
+      ...(password ? { password } : {}),
+    })
+    setPassword('')
+    showToast('SMTPの設定を保存しました')
+  }
+
+  const handleNotificationToggle = async (id: number, field: 'webhook_enabled' | 'email_enabled') => {
+    const s = sensors.find(s => s.id === id)!
+    const updated = { webhook_enabled: s.webhook_enabled, email_enabled: s.email_enabled, [field]: !s[field] }
+    await client.put(`/api/admin/sensors/${id}/notification`, updated)
+    setSensors(sensors.map(s => s.id === id ? { ...s, ...updated } : s))
+  }
+
+  const handleWebhookSave = async (id: number) => {
+    await client.put(`/api/admin/sensors/${id}/webhook`, { webhook_url: webhookInputs[id] || null })
+    setSensors(sensors.map(s => s.id === id ? { ...s, webhook_url: webhookInputs[id] || null } : s))
+    showToast('Webhook URLを保存しました')
+  }
+
+  const handleAddEmail = async (sensorId: number) => {
+    const email = newEmails[sensorId]?.trim()
+    if (!email) return
+    await client.post(`/api/admin/sensors/${sensorId}/email-recipients`, { email })
+    setNewEmails(prev => ({ ...prev, [sensorId]: '' }))
+    fetchAll()
+    showToast('メールアドレスを追加しました')
+  }
+
+  const handleDeleteEmail = async (sensorId: number, recipientId: number) => {
+    await client.delete(`/api/admin/email-recipients/${recipientId}`)
+    setSensors(sensors.map(s => s.id === sensorId
+      ? { ...s, recipients: s.recipients.filter(r => r.id !== recipientId) }
+      : s
+    ))
+  }
+
+  return (
+    <>
+      {toast && (
+        <div style={{ position: 'fixed', top: '1.5rem', right: '1.5rem', background: '#22c55e', color: '#fff', padding: '0.75rem 1.25rem', borderRadius: '6px', zIndex: 1000, fontSize: '0.9rem' }}>
+          {toast}
+        </div>
+      )}
+
+      {/* SMTPサーバー設定 */}
+      <h2 style={{ marginBottom: '0.75rem' }}>メールサーバー設定（共通）</h2>
+      <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1.25rem', maxWidth: '480px', marginBottom: '2rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.5rem 1rem', alignItems: 'center' }}>
+          <label>SMTPホスト</label>
+          <input placeholder="smtp.gmail.com" value={smtp.host ?? ''} onChange={e => setSmtp(p => ({ ...p, host: e.target.value }))} />
+          <label>ポート</label>
+          <input type="number" value={smtp.port} onChange={e => setSmtp(p => ({ ...p, port: Number(e.target.value) }))} />
+          <label>ユーザー名</label>
+          <input placeholder="送信元メールアドレス" value={smtp.username ?? ''} onChange={e => setSmtp(p => ({ ...p, username: e.target.value }))} />
+          <label>パスワード</label>
+          <input type="password" placeholder={smtp.password_set ? '（設定済み・変更する場合のみ入力）' : '未設定'} value={password} onChange={e => setPassword(e.target.value)} />
+          <label>送信元アドレス</label>
+          <input placeholder="no-reply@example.com" value={smtp.from_address ?? ''} onChange={e => setSmtp(p => ({ ...p, from_address: e.target.value }))} />
+        </div>
+        <button onClick={handleSmtpSave} style={{ marginTop: '0.75rem' }}>保存</button>
+      </div>
+
+      {/* センサごとの通知設定 */}
+      <h2 style={{ marginBottom: '0.75rem' }}>センサごとの通知設定</h2>
+      {sensors.map(s => (
+        <div key={s.id} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1.25rem', marginBottom: '1rem' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>{s.name}</h3>
+
+          {/* Teams通知 */}
+          <div style={{ marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+              <strong style={{ fontSize: '0.9rem' }}>Teams通知</strong>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                <input type="checkbox" checked={s.webhook_enabled} onChange={() => handleNotificationToggle(s.id, 'webhook_enabled')} />
+                {s.webhook_enabled ? 'ON' : 'OFF'}
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input
+                type="text"
+                placeholder="Webhook URL（未設定の場合は共通URLを使用）"
+                value={webhookInputs[s.id] ?? ''}
+                onChange={e => setWebhookInputs(prev => ({ ...prev, [s.id]: e.target.value }))}
+                style={{ width: '360px', fontSize: '0.85rem' }}
+              />
+              <button onClick={() => handleWebhookSave(s.id)}>保存</button>
+              {s.webhook_url && <span style={{ fontSize: '0.75rem', color: '#16a34a' }}>✓ 設定済</span>}
+            </div>
+          </div>
+
+          {/* メール通知 */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+              <strong style={{ fontSize: '0.9rem' }}>メール通知</strong>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', cursor: 'pointer' }}>
+                <input type="checkbox" checked={s.email_enabled} onChange={() => handleNotificationToggle(s.id, 'email_enabled')} />
+                {s.email_enabled ? 'ON' : 'OFF'}
+              </label>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.5rem' }}>
+              {s.recipients.map(r => (
+                <span key={r.id} style={{ background: '#f1f5f9', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  {r.email}
+                  <button onClick={() => handleDeleteEmail(s.id, r.id)} style={{ color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '0.8rem' }}>✕</button>
+                </span>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <input
+                type="email"
+                placeholder="通知先メールアドレスを追加"
+                value={newEmails[s.id] ?? ''}
+                onChange={e => setNewEmails(prev => ({ ...prev, [s.id]: e.target.value }))}
+                style={{ width: '280px', fontSize: '0.85rem' }}
+                onKeyDown={e => e.key === 'Enter' && handleAddEmail(s.id)}
+              />
+              <button onClick={() => handleAddEmail(s.id)}>追加</button>
+            </div>
+          </div>
+        </div>
+      ))}
     </>
   )
 }

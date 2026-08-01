@@ -32,6 +32,7 @@ from backend.interfaces import MeasurementData
 from backend.judgement.threshold import ThresholdJudgement
 from backend.judgement.trend import TrendJudgement
 from backend.notification.webhook import TeamsWebhook
+from backend.notification.email import load_email_notifier
 from backend.judgement.prediction import is_prediction_tracking_enabled, save_prediction
 
 
@@ -57,7 +58,7 @@ def get_channel_info(cur, sensor_key: str, channel_no: int):
     cur.execute("""
         SELECT sc.id, cc.upper_threshold, cc.lower_threshold, cc.slope_threshold,
                cc.regression_count, cc.trend_monitor, sc.name, s.name, sc.unit,
-               s.webhook_url
+               s.webhook_url, s.webhook_enabled, s.email_enabled, s.id
         FROM sensor_channels sc
         JOIN sensors s ON s.id = sc.sensor_id
         JOIN channel_config cc ON cc.sensor_channel_id = sc.id
@@ -74,27 +75,53 @@ def insert_measurement(cur, channel_id: int, value: float, unit: str, ts: dateti
     print(f"  DB挿入: {ts.strftime('%Y-%m-%d %H:%M:%S')} → {value}{unit}")
 
 
+def send_notifications(message: str, webhook_url, webhook_enabled: bool,
+                       email_enabled: bool, email_recipients: list, email_notifier):
+    if webhook_enabled:
+        try:
+            print("  Teams通知を送信中...")
+            TeamsWebhook(webhook_url).send(message)
+            print("  Teams送信完了")
+        except Exception as e:
+            print(f"  Teams送信エラー: {e}")
+
+    if email_enabled and email_notifier and email_recipients:
+        try:
+            print(f"  メール通知を送信中... ({', '.join(email_recipients)})")
+            email_notifier.send(email_recipients, message)
+            print("  メール送信完了")
+        except Exception as e:
+            print(f"  メール送信エラー: {e}")
+    elif email_enabled and not email_recipients:
+        print("  メール通知: 通知先アドレスが未登録")
+    elif email_enabled and not email_notifier:
+        print("  メール通知: SMTP設定が未完了")
+
+
 def run_threshold_check(cur, conn, channel_id: int, data: MeasurementData,
-                        upper: float, lower: float, webhook_url: str):
+                        upper: float, lower: float, webhook_url: str,
+                        webhook_enabled: bool, email_enabled: bool,
+                        email_recipients: list, email_notifier):
     threshold = ThresholdJudgement(upper=upper, lower=lower)
     result = threshold.judge(data)
     if result["is_abnormal"]:
         print(f"  [閾値異常] {result['message']}")
-        print("  Teams通知を送信中...")
-        TeamsWebhook(webhook_url).send(result["message"])
-        print("  送信完了")
         cur.execute(
             "INSERT INTO alert_history (timestamp, sensor_channel_id, alert_type, value, message) VALUES (%s, %s, %s, %s, %s)",
             (data.timestamp, channel_id, "threshold", data.value, result["message"])
         )
         conn.commit()
+        send_notifications(result["message"], webhook_url, webhook_enabled,
+                           email_enabled, email_recipients, email_notifier)
     else:
         print("  閾値異常なし")
 
 
 def run_trend_check(cur, conn, channel_id: int, channel_no: int, data: MeasurementData,
                     upper: float, lower: float, slope_threshold: float,
-                    regression_count: int, webhook_url: str):
+                    regression_count: int, webhook_url: str,
+                    webhook_enabled: bool, email_enabled: bool,
+                    email_recipients: list, email_notifier):
     cur.execute(
         "SELECT timestamp, value FROM measurements WHERE sensor_channel_id = %s ORDER BY timestamp DESC LIMIT %s",
         (channel_id, regression_count)
@@ -108,15 +135,14 @@ def run_trend_check(cur, conn, channel_id: int, channel_no: int, data: Measureme
     result = trend.judge(trend_data)
     if result["is_abnormal"]:
         print(f"  [傾向異常] {result['message']}")
-        print("  Teams通知を送信中...")
-        TeamsWebhook(webhook_url).send(result["message"])
-        print("  送信完了")
         cur.execute(
             "INSERT INTO alert_history (timestamp, sensor_channel_id, alert_type, value, message, predicted_steps) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
             (data.timestamp, channel_id, "trend", data.value, result["message"], result.get("predicted_steps"))
         )
         alert_id = cur.fetchone()[0]
         conn.commit()
+        send_notifications(result["message"], webhook_url, webhook_enabled,
+                           email_enabled, email_recipients, email_notifier)
         if is_prediction_tracking_enabled():
             save_prediction(
                 alert_history_id=alert_id,
@@ -152,11 +178,18 @@ def main():
         conn.close()
         return
 
-    channel_id, upper, lower, slope_threshold, regression_count, trend_monitor, ch_name, sensor_name, unit, webhook_url = info
+    channel_id, upper, lower, slope_threshold, regression_count, trend_monitor, ch_name, sensor_name, unit, webhook_url, webhook_enabled, email_enabled, sensor_id = info
     now = datetime.now()
 
+    # メール通知先・SMTP設定を取得
+    email_notifier = load_email_notifier(conn)
+    cur.execute("SELECT email FROM sensor_email_recipients WHERE sensor_id = %s", (sensor_id,))
+    email_recipients = [r[0] for r in cur.fetchall()]
+
     print(f"センサ: {sensor_name} / {ch_name}  (上限:{upper}{unit} 下限:{lower}{unit})")
-    print(f"通知先: {'センサ固有URL' if webhook_url else '共通URL（TEAMS_WEBHOOK_URL）'}")
+    print(f"Teams通知: {'ON' if webhook_enabled else 'OFF'}  メール通知: {'ON' if email_enabled else 'OFF'}")
+    if email_enabled:
+        print(f"メール通知先: {', '.join(email_recipients) if email_recipients else '未登録'}")
     print(f"モード: {mode}")
     print()
 
@@ -168,34 +201,38 @@ def main():
     trend_values = [round(trend_start + i * (trend_end - trend_start) / 9, 1) for i in range(10)]
 
     if mode == 'over':
-        print(f"【上限超過テスト】{over_value}{unit} を挿入 → 閾値判定 → Teams通知")
+        print(f"【上限超過テスト】{over_value}{unit} を挿入 → 閾値判定 → 通知")
         insert_measurement(cur, channel_id, over_value, unit, now)
         conn.commit()
         data = MeasurementData(channel=channel_no, value=over_value, unit=unit, timestamp=now.strftime('%Y-%m-%d %H:%M:%S'))
-        run_threshold_check(cur, conn, channel_id, data, upper, lower, webhook_url)
+        run_threshold_check(cur, conn, channel_id, data, upper, lower, webhook_url,
+                            webhook_enabled, email_enabled, email_recipients, email_notifier)
 
     elif mode == 'under':
-        print(f"【下限超過テスト】{under_value}{unit} を挿入 → 閾値判定 → Teams通知")
+        print(f"【下限超過テスト】{under_value}{unit} を挿入 → 閾値判定 → 通知")
         insert_measurement(cur, channel_id, under_value, unit, now)
         conn.commit()
         data = MeasurementData(channel=channel_no, value=under_value, unit=unit, timestamp=now.strftime('%Y-%m-%d %H:%M:%S'))
-        run_threshold_check(cur, conn, channel_id, data, upper, lower, webhook_url)
+        run_threshold_check(cur, conn, channel_id, data, upper, lower, webhook_url,
+                            webhook_enabled, email_enabled, email_recipients, email_notifier)
 
     elif mode == 'trend':
-        print(f"【急上昇トレンドテスト】10件挿入({trend_start}→{trend_end}{unit}) → 傾向判定 → Teams通知")
+        print(f"【急上昇トレンドテスト】10件挿入({trend_start}→{trend_end}{unit}) → 傾向判定 → 通知")
         for i, v in enumerate(trend_values):
             ts = now - timedelta(seconds=(9 - i) * 10)
             insert_measurement(cur, channel_id, v, unit, ts)
         conn.commit()
         last = MeasurementData(channel=channel_no, value=trend_values[-1], unit=unit, timestamp=now.strftime('%Y-%m-%d %H:%M:%S'))
-        run_trend_check(cur, conn, channel_id, channel_no, last, upper, lower, slope_threshold, regression_count, webhook_url)
+        run_trend_check(cur, conn, channel_id, channel_no, last, upper, lower, slope_threshold, regression_count,
+                        webhook_url, webhook_enabled, email_enabled, email_recipients, email_notifier)
 
     elif mode == 'normal':
         print(f"【正常値テスト】{normal_value}{unit} を挿入 → 判定（アラートなし）")
         insert_measurement(cur, channel_id, normal_value, unit, now)
         conn.commit()
         data = MeasurementData(channel=channel_no, value=normal_value, unit=unit, timestamp=now.strftime('%Y-%m-%d %H:%M:%S'))
-        run_threshold_check(cur, conn, channel_id, data, upper, lower, webhook_url)
+        run_threshold_check(cur, conn, channel_id, data, upper, lower, webhook_url,
+                            webhook_enabled, email_enabled, email_recipients, email_notifier)
 
     else:
         print(f"不明なモード: {mode}  (over / under / trend / normal / list)")
