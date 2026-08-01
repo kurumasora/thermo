@@ -3,8 +3,7 @@ load_dotenv()
 
 import logging
 import os
-from backend.devices.ondotori import OndotoriDevice
-from backend.devices.dummy_sensor import DummyHumiditySensor
+from backend.devices.sensor_map import SENSOR_MAP
 from backend.judgement.threshold import ThresholdJudgement
 from backend.judgement.trend import TrendJudgement
 from backend.judgement.prediction import is_prediction_tracking_enabled, save_prediction, verify_past_predictions
@@ -18,13 +17,6 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-# 新しいセンサを追加するときはここにクラスを追加する
-SENSOR_MAP = {
-    'ondotori_1': OndotoriDevice,
-    'dummy_humidity': DummyHumiditySensor,
-}
-
 
 def main():
     conn = None

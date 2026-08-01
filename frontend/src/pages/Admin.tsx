@@ -21,6 +21,18 @@ type SensorItem = {
   name: string
   active: boolean
   webhook_url: string | null
+  in_sensor_map: boolean
+}
+
+type ChannelInput = {
+  channel_no: number
+  name: string
+  unit: string
+  upper_threshold: number
+  lower_threshold: number
+  slope_threshold: number
+  regression_count: number
+  trend_monitor: boolean
 }
 
 type ChannelConfig = {
@@ -110,18 +122,41 @@ function Admin() {
   )
 }
 
+const emptyChannel = (): ChannelInput => ({
+  channel_no: 1,
+  name: '',
+  unit: '℃',
+  upper_threshold: 40,
+  lower_threshold: 0,
+  slope_threshold: 1.0,
+  regression_count: 10,
+  trend_monitor: false,
+})
+
 function SensorTab() {
   const [sensors, setSensors] = useState<SensorItem[]>([])
   const [webhookInputs, setWebhookInputs] = useState<Record<number, string>>({})
   const [toast, setToast] = useState<string | null>(null)
+  const [sensorMapKeys, setSensorMapKeys] = useState<string[]>([])
 
-  useEffect(() => {
+  // 新規センサ追加フォーム
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [newSensorKey, setNewSensorKey] = useState('')
+  const [newSensorName, setNewSensorName] = useState('')
+  const [newChannels, setNewChannels] = useState<ChannelInput[]>([emptyChannel()])
+  const [addError, setAddError] = useState<string | null>(null)
+
+  const fetchSensors = () =>
     client.get('/api/sensors').then(res => {
       setSensors(res.data)
       const inputs: Record<number, string> = {}
       res.data.forEach((s: SensorItem) => { inputs[s.id] = s.webhook_url ?? '' })
       setWebhookInputs(inputs)
     })
+
+  useEffect(() => {
+    fetchSensors()
+    client.get('/api/admin/sensor-map-keys').then(res => setSensorMapKeys(res.data.keys))
   }, [])
 
   const showToast = (msg: string) => {
@@ -141,6 +176,40 @@ function SensorTab() {
     showToast('Webhook URLを保存しました')
   }
 
+  const handleDelete = async (id: number, name: string) => {
+    if (!confirm(`「${name}」を削除しますか？\n関連する計測データ・アラート履歴は保持されます。`)) return
+    await client.delete(`/api/admin/sensors/${id}`)
+    showToast('センサを削除しました')
+    fetchSensors()
+  }
+
+  const updateChannel = (idx: number, field: keyof ChannelInput, value: string | number | boolean) => {
+    setNewChannels(prev => prev.map((ch, i) => i === idx ? { ...ch, [field]: value } : ch))
+  }
+
+  const handleAddSensor = async () => {
+    setAddError(null)
+    if (!newSensorKey) { setAddError('センサキーを選択してください'); return }
+    if (!newSensorName) { setAddError('センサ名を入力してください'); return }
+    if (newChannels.some(ch => !ch.name)) { setAddError('チャンネル名を入力してください'); return }
+
+    try {
+      await client.post('/api/admin/sensors', {
+        sensor_key: newSensorKey,
+        name: newSensorName,
+        channels: newChannels,
+      })
+      showToast('センサを追加しました（初期状態は無効）')
+      setShowAddForm(false)
+      setNewSensorKey('')
+      setNewSensorName('')
+      setNewChannels([emptyChannel()])
+      fetchSensors()
+    } catch (e: any) {
+      setAddError(e.response?.data?.detail ?? 'エラーが発生しました')
+    }
+  }
+
   return (
     <>
       {toast && (
@@ -152,7 +221,81 @@ function SensorTab() {
           {toast}
         </div>
       )}
-      <h2 style={{ marginBottom: '0.75rem' }}>センサ管理</h2>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <h2 style={{ margin: 0 }}>センサ管理</h2>
+        <button onClick={() => { setShowAddForm(!showAddForm); setAddError(null) }}>
+          {showAddForm ? 'キャンセル' : '＋ センサ追加'}
+        </button>
+      </div>
+
+      {showAddForm && (
+        <div style={{ border: '1px solid #3b82f6', borderRadius: '8px', padding: '1.25rem', marginBottom: '1.5rem', background: '#f8faff' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>新規センサ登録</h3>
+
+          {addError && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '0.5rem 0.75rem', marginBottom: '0.75rem', color: '#dc2626', fontSize: '0.9rem' }}>
+              {addError}
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.5rem 1rem', alignItems: 'center', maxWidth: '480px', marginBottom: '1rem' }}>
+            <label>センサキー</label>
+            <select value={newSensorKey} onChange={e => setNewSensorKey(e.target.value)}>
+              <option value="">-- 選択 --</option>
+              {sensorMapKeys.filter(k => !sensors.find(s => s.sensor_key === k)).map(k => (
+                <option key={k} value={k}>{k}</option>
+              ))}
+            </select>
+            <label>センサ名</label>
+            <input
+              type="text"
+              placeholder="例：倉庫1 温湿度センサ"
+              value={newSensorName}
+              onChange={e => setNewSensorName(e.target.value)}
+            />
+          </div>
+
+          <h4 style={{ marginBottom: '0.5rem' }}>チャンネル設定</h4>
+          {newChannels.map((ch, idx) => (
+            <div key={idx} style={{ border: '1px solid #e2e8f0', borderRadius: '6px', padding: '0.75rem', marginBottom: '0.75rem', background: '#fff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <strong>CH{idx + 1}</strong>
+                {newChannels.length > 1 && (
+                  <button onClick={() => setNewChannels(prev => prev.filter((_, i) => i !== idx))} style={{ color: 'red', fontSize: '0.8rem' }}>削除</button>
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto 1fr', gap: '0.4rem 0.75rem', alignItems: 'center' }}>
+                <label>CH番号</label>
+                <input type="number" min={1} value={ch.channel_no} onChange={e => updateChannel(idx, 'channel_no', Number(e.target.value))} />
+                <label>チャンネル名</label>
+                <input type="text" placeholder="例：温度" value={ch.name} onChange={e => updateChannel(idx, 'name', e.target.value)} />
+                <label>単位</label>
+                <input type="text" placeholder="℃" value={ch.unit} onChange={e => updateChannel(idx, 'unit', e.target.value)} />
+                <label>傾向監視</label>
+                <input type="checkbox" checked={ch.trend_monitor} onChange={e => updateChannel(idx, 'trend_monitor', e.target.checked)} />
+                <label>上限閾値</label>
+                <input type="number" value={ch.upper_threshold} onChange={e => updateChannel(idx, 'upper_threshold', Number(e.target.value))} />
+                <label>下限閾値</label>
+                <input type="number" value={ch.lower_threshold} onChange={e => updateChannel(idx, 'lower_threshold', Number(e.target.value))} />
+                <label>傾き閾値</label>
+                <input type="number" step="0.1" value={ch.slope_threshold} onChange={e => updateChannel(idx, 'slope_threshold', Number(e.target.value))} />
+                <label>回帰データ数</label>
+                <input type="number" value={ch.regression_count} onChange={e => updateChannel(idx, 'regression_count', Number(e.target.value))} />
+              </div>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+            <button onClick={() => setNewChannels(prev => [...prev, { ...emptyChannel(), channel_no: prev.length + 1 }])}>
+              ＋ チャンネル追加
+            </button>
+            <button onClick={handleAddSensor} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '0.4rem 1rem', borderRadius: '4px', cursor: 'pointer' }}>
+              登録する
+            </button>
+          </div>
+        </div>
+      )}
+
       <table style={{ borderCollapse: 'collapse', width: '100%' }}>
         <thead>
           <tr>
@@ -167,7 +310,14 @@ function SensorTab() {
           {sensors.map(s => (
             <tr key={s.id}>
               <td style={tdStyle}>{s.name}</td>
-              <td style={tdStyle}><code>{s.sensor_key}</code></td>
+              <td style={tdStyle}>
+                <code>{s.sensor_key}</code>
+                {!s.in_sensor_map && (
+                  <span style={{ marginLeft: '0.4rem', fontSize: '0.7rem', color: '#dc2626', background: '#fef2f2', padding: '0 4px', borderRadius: '3px' }}>
+                    未登録
+                  </span>
+                )}
+              </td>
               <td style={tdStyle}>
                 <span style={{ color: s.active ? '#16a34a' : '#64748b', fontWeight: 'bold' }}>
                   {s.active ? '有効' : '無効'}
@@ -189,9 +339,14 @@ function SensorTab() {
                 </div>
               </td>
               <td style={tdStyle}>
-                <button onClick={() => handleToggle(s.id)}>
-                  {s.active ? '無効化' : '有効化'}
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button onClick={() => handleToggle(s.id)}>
+                    {s.active ? '無効化' : '有効化'}
+                  </button>
+                  <button onClick={() => handleDelete(s.id, s.name)} style={{ color: '#dc2626' }}>
+                    削除
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
