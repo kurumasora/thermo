@@ -4,7 +4,9 @@ import os
 
 class TeamsWebhook:
     def __init__(self):
-        self.url = os.environ["TEAMS_WEBHOOK_URL"]
+        self.url = os.environ.get("TEAMS_WEBHOOK_URL")
+        if not self.url:
+            raise ValueError("TEAMS_WEBHOOK_URL が設定されていません")
 
     def send(self, message: str) -> None:
         payload = {

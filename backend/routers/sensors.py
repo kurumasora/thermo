@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from backend.db import get_connection
 from backend.auth.utils import get_current_user, require_admin
 
@@ -47,6 +47,8 @@ def toggle_sensor_active(sensor_id: int, user: dict = Depends(require_admin)):
             (sensor_id,)
         )
         row = cur.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="センサが見つかりません")
         conn.commit()
         return {"active": row[0]}
     finally:
