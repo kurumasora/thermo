@@ -31,11 +31,7 @@ function Navbar() {
       <Link to="/" style={{ color: '#cbd5e1', textDecoration: 'none' }}>ダッシュボード</Link>
       <Link to="/alerts" style={{ color: '#cbd5e1', textDecoration: 'none' }}>アラート履歴</Link>
       {role === 'admin' && (
-        <>
-          <Link to="/settings" style={{ color: '#cbd5e1', textDecoration: 'none' }}>閾値設定</Link>
-          <Link to="/admin" style={{ color: '#cbd5e1', textDecoration: 'none' }}>ユーザー管理</Link>
-          <Link to="/prediction" style={{ color: '#cbd5e1', textDecoration: 'none' }}>予測精度</Link>
-        </>
+        <Link to="/admin" style={{ color: '#cbd5e1', textDecoration: 'none' }}>管理</Link>
       )}
       <Link to="/change-password" style={{ color: '#cbd5e1', textDecoration: 'none', fontSize: '0.9rem' }}>パスワード変更</Link>
       <button onClick={handleLogout} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '0.25rem 0.75rem', borderRadius: '4px', cursor: 'pointer' }}>

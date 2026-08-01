@@ -2,10 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Alerts from './pages/Alerts'
-import Settings from './pages/Settings'
 import Admin from './pages/Admin'
 import ChangePassword from './pages/ChangePassword'
-import PredictionReport from './pages/PredictionReport'
 import Navbar from './components/Navbar'
 import RequireAuth from './components/RequireAuth'
 
@@ -21,9 +19,9 @@ function Layout() {
         <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
         <Route path="/alerts" element={<RequireAuth><Alerts /></RequireAuth>} />
         <Route path="/change-password" element={<RequireAuth><ChangePassword /></RequireAuth>} />
-        <Route path="/settings" element={<RequireAuth requireAdmin><Settings /></RequireAuth>} />
+        <Route path="/settings" element={<Navigate to="/admin?tab=threshold" />} />
+        <Route path="/prediction" element={<Navigate to="/admin?tab=prediction" />} />
         <Route path="/admin" element={<RequireAuth requireAdmin><Admin /></RequireAuth>} />
-        <Route path="/prediction" element={<RequireAuth requireAdmin><PredictionReport /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </>
