@@ -62,6 +62,7 @@ def get_latest(user: dict = Depends(get_current_user)):
 def export_measurements_csv(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    sensor_id: Optional[int] = Query(None),
     user: dict = Depends(get_current_user),
 ):
     """計測データをCSV形式でエクスポート"""
@@ -70,16 +71,21 @@ def export_measurements_csv(
         cur = conn.cursor()
 
         # センサ・チャンネル一覧を取得
-        cur.execute("""
+        channel_query = """
             SELECT sc.id, s.name, sc.name, sc.unit
             FROM sensor_channels sc
             JOIN sensors s ON s.id = sc.sensor_id
             WHERE s.active = TRUE
-            ORDER BY s.id, sc.channel_no
-        """)
+        """
+        channel_params = []
+        if sensor_id:
+            channel_query += " AND s.id = %s"
+            channel_params.append(sensor_id)
+        channel_query += " ORDER BY s.id, sc.channel_no"
+        cur.execute(channel_query, channel_params)
         channels = cur.fetchall()  # (id, sensor_name, channel_name, unit)
 
-        # 期間フィルタ付きで計測データ取得
+        # 期間・センサフィルタ付きで計測データ取得
         query = """
             SELECT m.timestamp, m.sensor_channel_id, m.value
             FROM measurements m
@@ -88,6 +94,9 @@ def export_measurements_csv(
             WHERE s.active = TRUE
         """
         params = []
+        if sensor_id:
+            query += " AND s.id = %s"
+            params.append(sensor_id)
         if date_from:
             query += " AND m.timestamp >= %s"
             params.append(date_from)
@@ -109,6 +118,7 @@ def export_measurements_csv(
 
         # CSV生成
         output = io.StringIO()
+        output.write('﻿')  # UTF-8 BOM（Excelで文字化けしないために必要）
         writer = csv.writer(output)
 
         # ヘッダー行
@@ -117,13 +127,16 @@ def export_measurements_csv(
 
         # データ行
         for ts in sorted(data_map.keys(), reverse=True):
-            row = [ts] + [data_map[ts].get(ch_id, "") for ch_id, _, _, _ in channels]
+            ts_str = str(ts)[:19]  # タイムゾーン部分を除去して YYYY-MM-DD HH:MM:SS に統一
+            row = [ts_str] + [data_map[ts].get(ch_id, "") for ch_id, _, _, _ in channels]
             writer.writerow(row)
 
         output.seek(0)
-        filename = "measurements.csv"
-        if date_from or date_to:
-            filename = f"measurements_{(date_from or '').replace('-','')}_{(date_to or '').replace('-','')}.csv"
+        sensor_name_part = ""
+        if sensor_id and channels:
+            sensor_name_part = "_" + channels[0][1].replace(" ", "_")
+        date_part = f"_{(date_from or '').replace('-','')}_{(date_to or '').replace('-','')}" if (date_from or date_to) else ""
+        filename = f"measurements{sensor_name_part}{date_part}.csv"
 
         return StreamingResponse(
             iter([output.getvalue()]),

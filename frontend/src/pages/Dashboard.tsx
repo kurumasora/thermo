@@ -139,7 +139,12 @@ function Dashboard() {
             {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}件</option>)}
           </select>
         </label>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <label style={{ fontSize: '0.85rem', color: '#64748b' }}>センサ：</label>
+          <select id="csv-sensor" style={{ fontSize: '0.85rem' }}>
+            <option value="">全て</option>
+            {sensors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
           <label style={{ fontSize: '0.85rem', color: '#64748b' }}>期間：</label>
           <input type="date" id="csv-from" style={{ fontSize: '0.85rem' }} />
           <span style={{ fontSize: '0.85rem', color: '#64748b' }}>〜</span>
@@ -148,7 +153,9 @@ function Dashboard() {
             onClick={() => {
               const from = (document.getElementById('csv-from') as HTMLInputElement).value
               const to = (document.getElementById('csv-to') as HTMLInputElement).value
+              const sensorId = (document.getElementById('csv-sensor') as HTMLSelectElement).value
               const params = new URLSearchParams()
+              if (sensorId) params.append('sensor_id', sensorId)
               if (from) params.append('date_from', from)
               if (to) params.append('date_to', to)
               const token = localStorage.getItem('token')
@@ -160,7 +167,7 @@ function Dashboard() {
                   const url = URL.createObjectURL(blob)
                   const a = document.createElement('a')
                   a.href = url
-                  a.download = `measurements_${from || 'all'}_${to || 'all'}.csv`
+                  a.download = 'measurements.csv'
                   a.click()
                   URL.revokeObjectURL(url)
                 })
