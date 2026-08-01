@@ -60,13 +60,13 @@ def get_prediction_report(user: dict = Depends(require_admin)):
 
         cur.execute(
             """
-            SELECT
-                tp.id, tp.channel, tp.direction, tp.limit_value,
-                tp.predicted_at, tp.created_at, tp.verified,
-                tp.verified_at, tp.outcome,
-                ah.message AS alert_message
+            SELECT tp.id, sc.name AS channel_name, s.name AS sensor_name,
+                   tp.direction, tp.limit_value, tp.predicted_at, tp.created_at,
+                   tp.verified, tp.verified_at, tp.outcome, ah.message
             FROM trend_predictions tp
             LEFT JOIN alert_history ah ON ah.id = tp.alert_history_id
+            JOIN sensor_channels sc ON sc.id = tp.sensor_channel_id
+            JOIN sensors s ON s.id = sc.sensor_id
             ORDER BY tp.created_at DESC
             LIMIT 50
             """
@@ -75,27 +75,24 @@ def get_prediction_report(user: dict = Depends(require_admin)):
         records = [
             {
                 "id": r[0],
-                "channel": r[1],
-                "direction": r[2],
-                "limit_value": r[3],
-                "predicted_at": str(r[4]),
-                "created_at": str(r[5]),
-                "verified": r[6],
-                "verified_at": str(r[7]) if r[7] else None,
-                "outcome": r[8],
-                "alert_message": r[9],
+                "channel_name": r[1],
+                "sensor_name": r[2],
+                "direction": r[3],
+                "limit_value": r[4],
+                "predicted_at": str(r[5]),
+                "created_at": str(r[6]),
+                "verified": r[7],
+                "verified_at": str(r[8]) if r[8] else None,
+                "outcome": r[9],
+                "alert_message": r[10],
             }
             for r in rows
         ]
 
         return {
             "summary": {
-                "total": total,
-                "verified": verified,
-                "hits": hits,
-                "misses": misses,
-                "pending": pending,
-                "accuracy_pct": accuracy,
+                "total": total, "verified": verified, "hits": hits,
+                "misses": misses, "pending": pending, "accuracy_pct": accuracy,
             },
             "records": records,
         }

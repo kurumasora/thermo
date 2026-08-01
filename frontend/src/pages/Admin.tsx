@@ -14,8 +14,16 @@ type User = {
   created_at: string
 }
 
+type SensorItem = {
+  id: number
+  sensor_key: string
+  name: string
+  active: boolean
+}
+
 function Admin() {
   const [users, setUsers] = useState<User[]>([])
+  const [sensors, setSensors] = useState<SensorItem[]>([])
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('user')
@@ -36,7 +44,13 @@ function Admin() {
 
   useEffect(() => {
     fetchUsers()
+    client.get('/api/sensors').then(res => setSensors(res.data))
   }, [])
+
+  const handleToggleSensor = async (id: number) => {
+    const res = await client.put(`/api/admin/sensors/${id}/active`)
+    setSensors(sensors.map(s => s.id === id ? { ...s, active: res.data.active } : s))
+  }
 
   const handleCreate = async () => {
     if (!username || !password) return
@@ -68,6 +82,36 @@ function Admin() {
   return (
     <div style={{ padding: '1.5rem' }}>
       <h1>ユーザー管理</h1>
+
+      <h2>センサ管理</h2>
+      <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '1.5rem' }}>
+        <thead>
+          <tr>
+            <th style={thStyle}>センサ名</th>
+            <th style={thStyle}>センサキー</th>
+            <th style={thStyle}>状態</th>
+            <th style={thStyle}>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sensors.map(s => (
+            <tr key={s.id}>
+              <td style={tdStyle}>{s.name}</td>
+              <td style={tdStyle}><code>{s.sensor_key}</code></td>
+              <td style={tdStyle}>
+                <span style={{ color: s.active ? '#16a34a' : '#64748b', fontWeight: 'bold' }}>
+                  {s.active ? '有効' : '無効'}
+                </span>
+              </td>
+              <td style={tdStyle}>
+                <button onClick={() => handleToggleSensor(s.id)}>
+                  {s.active ? '無効化' : '有効化'}
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       <h2>ユーザー追加</h2>
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>

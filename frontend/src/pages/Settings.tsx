@@ -1,22 +1,27 @@
 import { useEffect, useState } from 'react'
 import client from '../api/client'
 
-type Settings = {
-  id: number
-  channel: number
+type ChannelConfig = {
+  sensor_channel_id: number
   upper_threshold: number
   lower_threshold: number
   slope_threshold: number
   regression_count: number
   trend_monitor: boolean
+  channel_no: number
+  channel_name: string
+  unit: string
+  sensor_id: number
+  sensor_name: string
+  sensor_key: string
 }
 
 function Settings() {
-  const [settings, setSettings] = useState<Settings[]>([])
+  const [configs, setConfigs] = useState<ChannelConfig[]>([])
   const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
-    client.get('/api/settings').then(res => setSettings(res.data))
+    client.get('/api/settings').then(res => setConfigs(res.data))
   }, [])
 
   const showToast = (msg: string) => {
@@ -24,10 +29,29 @@ function Settings() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  const handleUpdate = async (s: Settings) => {
-    await client.put(`/api/settings/${s.channel}`, s)
-    showToast(`CH${s.channel} の設定を更新しました`)
+  const update = (id: number, field: string, value: number | boolean) =>
+    setConfigs(configs.map(c => c.sensor_channel_id === id ? { ...c, [field]: value } : c))
+
+  const handleSave = async (c: ChannelConfig) => {
+    await client.put(`/api/settings/${c.sensor_channel_id}`, {
+      upper_threshold: c.upper_threshold,
+      lower_threshold: c.lower_threshold,
+      slope_threshold: c.slope_threshold,
+      regression_count: c.regression_count,
+      trend_monitor: c.trend_monitor,
+    })
+    showToast(`${c.sensor_name} ${c.channel_name} を更新しました`)
   }
+
+  // センサごとにグループ化
+  const grouped = configs.reduce<Record<number, { sensor_name: string; sensor_key: string; channels: ChannelConfig[] }>>(
+    (acc, c) => {
+      if (!acc[c.sensor_id]) acc[c.sensor_id] = { sensor_name: c.sensor_name, sensor_key: c.sensor_key, channels: [] }
+      acc[c.sensor_id].channels.push(c)
+      return acc
+    },
+    {}
+  )
 
   return (
     <div style={{ padding: '1.5rem' }}>
@@ -38,29 +62,35 @@ function Settings() {
           position: 'fixed', top: '1.5rem', right: '1.5rem',
           background: '#22c55e', color: '#fff',
           padding: '0.75rem 1.25rem', borderRadius: '6px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 1000,
-          fontSize: '0.9rem',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 1000, fontSize: '0.9rem',
         }}>
           {toast}
         </div>
       )}
 
-      {settings.map(s => (
-        <div key={s.channel} style={{ marginBottom: '1.5rem', padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
-          <h2 style={{ marginTop: 0 }}>CH{s.channel}</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.5rem 1rem', alignItems: 'center', maxWidth: '400px' }}>
-            <label>上限閾値 (℃)</label>
-            <input type="number" value={s.upper_threshold} onChange={e => setSettings(settings.map(x => x.channel === s.channel ? { ...x, upper_threshold: Number(e.target.value) } : x))} />
-            <label>下限閾値 (℃)</label>
-            <input type="number" value={s.lower_threshold} onChange={e => setSettings(settings.map(x => x.channel === s.channel ? { ...x, lower_threshold: Number(e.target.value) } : x))} />
-            <label>傾き閾値 (℃/10分)</label>
-            <input type="number" value={s.slope_threshold} onChange={e => setSettings(settings.map(x => x.channel === s.channel ? { ...x, slope_threshold: Number(e.target.value) } : x))} />
-            <label>回帰データ数</label>
-            <input type="number" value={s.regression_count} onChange={e => setSettings(settings.map(x => x.channel === s.channel ? { ...x, regression_count: Number(e.target.value) } : x))} />
-            <label>傾向監視</label>
-            <input type="checkbox" checked={s.trend_monitor} onChange={e => setSettings(settings.map(x => x.channel === s.channel ? { ...x, trend_monitor: e.target.checked } : x))} />
+      {Object.values(grouped).map(({ sensor_name, sensor_key, channels }) => (
+        <div key={sensor_key} style={{ marginBottom: '2rem' }}>
+          <h2 style={{ marginBottom: '0.75rem', color: '#1e293b' }}>{sensor_name}</h2>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            {channels.map(c => (
+              <div key={c.sensor_channel_id} style={{ padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '6px', minWidth: '280px' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '0.75rem' }}>{c.channel_name}</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.5rem 1rem', alignItems: 'center' }}>
+                  <label>上限閾値 ({c.unit})</label>
+                  <input type="number" value={c.upper_threshold} onChange={e => update(c.sensor_channel_id, 'upper_threshold', Number(e.target.value))} />
+                  <label>下限閾値 ({c.unit})</label>
+                  <input type="number" value={c.lower_threshold} onChange={e => update(c.sensor_channel_id, 'lower_threshold', Number(e.target.value))} />
+                  <label>傾き閾値 ({c.unit}/10分)</label>
+                  <input type="number" step="0.1" value={c.slope_threshold} onChange={e => update(c.sensor_channel_id, 'slope_threshold', Number(e.target.value))} />
+                  <label>回帰データ数</label>
+                  <input type="number" value={c.regression_count} onChange={e => update(c.sensor_channel_id, 'regression_count', Number(e.target.value))} />
+                  <label>傾向監視</label>
+                  <input type="checkbox" checked={c.trend_monitor} onChange={e => update(c.sensor_channel_id, 'trend_monitor', e.target.checked)} />
+                </div>
+                <button onClick={() => handleSave(c)} style={{ marginTop: '0.75rem' }}>更新</button>
+              </div>
+            ))}
           </div>
-          <button onClick={() => handleUpdate(s)} style={{ marginTop: '0.75rem' }}>更新</button>
         </div>
       ))}
     </div>
