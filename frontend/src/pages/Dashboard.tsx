@@ -131,7 +131,7 @@ function Dashboard() {
         </div>
       ))}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
         <h2 style={{ margin: 0 }}>計測データ一覧</h2>
         <label style={{ fontSize: '0.9rem', color: '#64748b' }}>
           表示件数：
@@ -139,6 +139,37 @@ function Dashboard() {
             {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}件</option>)}
           </select>
         </label>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <label style={{ fontSize: '0.85rem', color: '#64748b' }}>期間：</label>
+          <input type="date" id="csv-from" style={{ fontSize: '0.85rem' }} />
+          <span style={{ fontSize: '0.85rem', color: '#64748b' }}>〜</span>
+          <input type="date" id="csv-to" style={{ fontSize: '0.85rem' }} />
+          <button
+            onClick={() => {
+              const from = (document.getElementById('csv-from') as HTMLInputElement).value
+              const to = (document.getElementById('csv-to') as HTMLInputElement).value
+              const params = new URLSearchParams()
+              if (from) params.append('date_from', from)
+              if (to) params.append('date_to', to)
+              const token = localStorage.getItem('token')
+              fetch(`/api/measurements/export?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              })
+                .then(res => res.blob())
+                .then(blob => {
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `measurements_${from || 'all'}_${to || 'all'}.csv`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                })
+            }}
+            style={{ fontSize: '0.85rem' }}
+          >
+            CSVダウンロード
+          </button>
+        </div>
       </div>
 
       <div style={{ overflowX: 'auto' }}>
