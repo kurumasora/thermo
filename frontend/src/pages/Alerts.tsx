@@ -9,29 +9,65 @@ type Alert = {
   channel_name: string
   unit: string
   sensor_name: string
+  sensor_id: number
   alert_type: string
   value: number
   message: string
   predicted_steps: number | null
 }
 
+type Sensor = { id: number; name: string }
+
 const PAGE_SIZE = 20
 
 function Alerts() {
   const [alerts, setAlerts] = useState<Alert[]>([])
+  const [sensors, setSensors] = useState<Sensor[]>([])
   const [filterType, setFilterType] = useState<'all' | 'threshold' | 'trend'>('all')
-  const [filterSensor, setFilterSensor] = useState<string>('all')
+  const [filterSensorId, setFilterSensorId] = useState<string>('all')
   const [page, setPage] = useState(1)
+  const [csvFrom, setCsvFrom] = useState('')
+  const [csvTo, setCsvTo] = useState('')
 
   useEffect(() => {
-    client.get('/api/alerts').then(res => setAlerts(res.data))
+    client.get('/api/alerts').then(res => {
+      setAlerts(res.data)
+      const seen = new Set<number>()
+      const sensorList: Sensor[] = []
+      for (const a of res.data) {
+        if (!seen.has(a.sensor_id)) {
+          seen.add(a.sensor_id)
+          sensorList.push({ id: a.sensor_id, name: a.sensor_name })
+        }
+      }
+      setSensors(sensorList)
+    })
   }, [])
 
-  const sensorNames = [...new Set(alerts.map(a => a.sensor_name))]
+  const handleCsvDownload = () => {
+    const params = new URLSearchParams()
+    if (filterSensorId !== 'all') params.append('sensor_id', filterSensorId)
+    if (filterType !== 'all') params.append('alert_type', filterType)
+    if (csvFrom) params.append('date_from', csvFrom)
+    if (csvTo) params.append('date_to', csvTo)
+    const token = localStorage.getItem('token')
+    fetch(`/api/alerts/export?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'alerts.csv'
+        a.click()
+        URL.revokeObjectURL(url)
+      })
+  }
 
   const filtered = alerts.filter(a => {
     if (filterType !== 'all' && a.alert_type !== filterType) return false
-    if (filterSensor !== 'all' && a.sensor_name !== filterSensor) return false
+    if (filterSensorId !== 'all' && String(a.sensor_id) !== filterSensorId) return false
     return true
   })
   const slice = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -41,7 +77,7 @@ function Alerts() {
     <div style={{ padding: '1.5rem' }}>
       <h1>アラート履歴</h1>
 
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <label style={{ fontSize: '0.9rem' }}>
           種別：
           <select value={filterType} onChange={e => { setFilterType(e.target.value as typeof filterType); setPage(1) }} style={{ marginLeft: '0.25rem' }}>
@@ -52,12 +88,20 @@ function Alerts() {
         </label>
         <label style={{ fontSize: '0.9rem' }}>
           センサ：
-          <select value={filterSensor} onChange={e => { setFilterSensor(e.target.value); setPage(1) }} style={{ marginLeft: '0.25rem' }}>
+          <select value={filterSensorId} onChange={e => { setFilterSensorId(e.target.value); setPage(1) }} style={{ marginLeft: '0.25rem' }}>
             <option value="all">すべて</option>
-            {sensorNames.map(n => <option key={n} value={n}>{n}</option>)}
+            {sensors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </label>
-        <span style={{ fontSize: '0.85rem', color: '#64748b', alignSelf: 'center' }}>{filtered.length}件</span>
+        <span style={{ fontSize: '0.85rem', color: '#64748b' }}>{filtered.length}件</span>
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <label style={{ fontSize: '0.85rem', color: '#64748b' }}>期間：</label>
+          <input type="date" value={csvFrom} onChange={e => setCsvFrom(e.target.value)} style={{ fontSize: '0.85rem' }} />
+          <span style={{ fontSize: '0.85rem', color: '#64748b' }}>〜</span>
+          <input type="date" value={csvTo} onChange={e => setCsvTo(e.target.value)} style={{ fontSize: '0.85rem' }} />
+          <button onClick={handleCsvDownload} style={{ fontSize: '0.85rem' }}>CSVダウンロード</button>
+        </div>
       </div>
 
       <div style={{ overflowX: 'auto' }}>

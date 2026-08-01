@@ -147,6 +147,70 @@ def export_measurements_csv(
         conn.close()
 
 
+@router.get("/api/alerts/export")
+def export_alerts_csv(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    sensor_id: Optional[int] = Query(None),
+    alert_type: Optional[str] = Query(None),
+    user: dict = Depends(get_current_user),
+):
+    """アラート履歴をCSV形式でエクスポート"""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+
+        query = """
+            SELECT ah.timestamp, s.name, sc.name, sc.unit,
+                   ah.alert_type, ah.value, ah.message
+            FROM alert_history ah
+            JOIN sensor_channels sc ON sc.id = ah.sensor_channel_id
+            JOIN sensors s ON s.id = sc.sensor_id
+            WHERE 1=1
+        """
+        params = []
+        if sensor_id:
+            query += " AND s.id = %s"
+            params.append(sensor_id)
+        if alert_type in ("threshold", "trend"):
+            query += " AND ah.alert_type = %s"
+            params.append(alert_type)
+        if date_from:
+            query += " AND ah.timestamp >= %s"
+            params.append(date_from)
+        if date_to:
+            query += " AND ah.timestamp <= %s"
+            params.append(date_to + " 23:59:59")
+        query += " ORDER BY ah.timestamp DESC"
+
+        cur.execute(query, params)
+        rows = cur.fetchall()
+
+        output = io.StringIO()
+        output.write('﻿')  # UTF-8 BOM
+        writer = csv.writer(output)
+        writer.writerow(["タイムスタンプ", "センサ名", "チャンネル名", "単位", "種別", "値", "メッセージ"])
+        for r in rows:
+            ts_str = str(r[0])[:19]
+            alert_label = "閾値超過" if r[4] == "threshold" else "傾向異常"
+            writer.writerow([ts_str, r[1], r[2], r[3], alert_label, r[5], r[6]])
+
+        output.seek(0)
+        sensor_part = ""
+        if sensor_id and rows:
+            sensor_part = "_" + rows[0][1].replace(" ", "_")
+        date_part = f"_{(date_from or '').replace('-','')}_{(date_to or '').replace('-','')}" if (date_from or date_to) else ""
+        filename = f"alerts{sensor_part}{date_part}.csv"
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+    finally:
+        conn.close()
+
+
 @router.get("/api/alerts")
 def get_alerts(user: dict = Depends(get_current_user)):
     conn = get_connection()
@@ -156,7 +220,7 @@ def get_alerts(user: dict = Depends(get_current_user)):
             """
             SELECT ah.id, ah.timestamp, ah.sensor_channel_id,
                    sc.name AS channel_name, sc.unit,
-                   s.name AS sensor_name,
+                   s.id AS sensor_id, s.name AS sensor_name,
                    ah.alert_type, ah.value, ah.message, ah.predicted_steps
             FROM alert_history ah
             JOIN sensor_channels sc ON sc.id = ah.sensor_channel_id
@@ -173,11 +237,12 @@ def get_alerts(user: dict = Depends(get_current_user)):
                 "sensor_channel_id": r[2],
                 "channel_name": r[3],
                 "unit": r[4],
-                "sensor_name": r[5],
-                "alert_type": r[6],
-                "value": r[7],
-                "message": r[8],
-                "predicted_steps": r[9],
+                "sensor_id": r[5],
+                "sensor_name": r[6],
+                "alert_type": r[7],
+                "value": r[8],
+                "message": r[9],
+                "predicted_steps": r[10],
             }
             for r in rows
         ]
