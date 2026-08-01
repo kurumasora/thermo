@@ -13,11 +13,11 @@ def get_sensors(user: dict = Depends(get_current_user)):
     conn = get_connection()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, sensor_key, name, active, webhook_url FROM sensors ORDER BY id")
+        cur.execute("SELECT id, sensor_key, name, active, webhook_url, webhook_enabled, email_enabled FROM sensors ORDER BY id")
         sensors = cur.fetchall()
 
         result = []
-        for sensor_id, sensor_key, name, active, webhook_url in sensors:
+        for sensor_id, sensor_key, name, active, webhook_url, webhook_enabled, email_enabled in sensors:
             cur.execute(
                 "SELECT id, channel_no, name, unit FROM sensor_channels WHERE sensor_id = %s ORDER BY channel_no",
                 (sensor_id,)
@@ -32,6 +32,8 @@ def get_sensors(user: dict = Depends(get_current_user)):
                 "name": name,
                 "active": active,
                 "webhook_url": webhook_url,
+                "webhook_enabled": webhook_enabled,
+                "email_enabled": email_enabled,
                 "channels": channels,
                 "in_sensor_map": sensor_key in SENSOR_MAP,
             })
