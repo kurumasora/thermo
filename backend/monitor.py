@@ -33,10 +33,10 @@ def main():
         cur = conn.cursor()
 
         # アクティブなセンサをDBから取得
-        cur.execute("SELECT id, sensor_key, name FROM sensors WHERE active = TRUE")
+        cur.execute("SELECT id, sensor_key, name, webhook_url FROM sensors WHERE active = TRUE")
         active_sensors = cur.fetchall()
 
-        for sensor_id, sensor_key, sensor_name in active_sensors:
+        for sensor_id, sensor_key, sensor_name, sensor_webhook_url in active_sensors:
             if sensor_key not in SENSOR_MAP:
                 logger.warning(f"未登録センサ: {sensor_key}")
                 continue
@@ -108,7 +108,7 @@ def main():
                     conn.commit()
                     logger.warning(f"閾値異常: {result['message']}")
                     try:
-                        TeamsWebhook().send(result["message"])
+                        TeamsWebhook(sensor_webhook_url).send(result["message"])
                     except Exception as e:
                         logger.error(f"Teams通知エラー（閾値）: {e}")
 
@@ -136,7 +136,7 @@ def main():
                         conn.commit()
                         logger.warning(f"傾向異常アラート: {trend_result['message']}")
                         try:
-                            TeamsWebhook().send(trend_result["message"])
+                            TeamsWebhook(sensor_webhook_url).send(trend_result["message"])
                         except Exception as e:
                             logger.error(f"Teams通知エラー（傾向）: {e}")
 

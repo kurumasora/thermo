@@ -20,6 +20,7 @@ type SensorItem = {
   sensor_key: string
   name: string
   active: boolean
+  webhook_url: string | null
 }
 
 type ChannelConfig = {
@@ -111,18 +112,46 @@ function Admin() {
 
 function SensorTab() {
   const [sensors, setSensors] = useState<SensorItem[]>([])
+  const [webhookInputs, setWebhookInputs] = useState<Record<number, string>>({})
+  const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
-    client.get('/api/sensors').then(res => setSensors(res.data))
+    client.get('/api/sensors').then(res => {
+      setSensors(res.data)
+      const inputs: Record<number, string> = {}
+      res.data.forEach((s: SensorItem) => { inputs[s.id] = s.webhook_url ?? '' })
+      setWebhookInputs(inputs)
+    })
   }, [])
+
+  const showToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
 
   const handleToggle = async (id: number) => {
     const res = await client.put(`/api/admin/sensors/${id}/active`)
     setSensors(sensors.map(s => s.id === id ? { ...s, active: res.data.active } : s))
   }
 
+  const handleSaveWebhook = async (id: number) => {
+    const url = webhookInputs[id] ?? ''
+    await client.put(`/api/admin/sensors/${id}/webhook`, { webhook_url: url || null })
+    setSensors(sensors.map(s => s.id === id ? { ...s, webhook_url: url || null } : s))
+    showToast('Webhook URLを保存しました')
+  }
+
   return (
     <>
+      {toast && (
+        <div style={{
+          position: 'fixed', top: '1.5rem', right: '1.5rem',
+          background: '#22c55e', color: '#fff',
+          padding: '0.75rem 1.25rem', borderRadius: '6px', zIndex: 1000, fontSize: '0.9rem',
+        }}>
+          {toast}
+        </div>
+      )}
       <h2 style={{ marginBottom: '0.75rem' }}>センサ管理</h2>
       <table style={{ borderCollapse: 'collapse', width: '100%' }}>
         <thead>
@@ -130,6 +159,7 @@ function SensorTab() {
             <th style={thStyle}>センサ名</th>
             <th style={thStyle}>センサキー</th>
             <th style={thStyle}>状態</th>
+            <th style={thStyle}>Teams通知先（個別URL）</th>
             <th style={thStyle}>操作</th>
           </tr>
         </thead>
@@ -142,6 +172,21 @@ function SensorTab() {
                 <span style={{ color: s.active ? '#16a34a' : '#64748b', fontWeight: 'bold' }}>
                   {s.active ? '有効' : '無効'}
                 </span>
+              </td>
+              <td style={tdStyle}>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    placeholder="未設定（共通URLを使用）"
+                    value={webhookInputs[s.id] ?? ''}
+                    onChange={e => setWebhookInputs(prev => ({ ...prev, [s.id]: e.target.value }))}
+                    style={{ width: '320px', fontSize: '0.8rem' }}
+                  />
+                  <button onClick={() => handleSaveWebhook(s.id)}>保存</button>
+                  {s.webhook_url && (
+                    <span style={{ fontSize: '0.75rem', color: '#16a34a' }}>✓ 設定済</span>
+                  )}
+                </div>
               </td>
               <td style={tdStyle}>
                 <button onClick={() => handleToggle(s.id)}>
