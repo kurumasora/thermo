@@ -48,7 +48,11 @@ type ChannelConfig = {
   sensor_id: number
   sensor_name: string
   sensor_key: string
+  judgement_type: string
+  judgement_params: Record<string, number>
 }
+
+type JudgementType = { value: string; label: string }
 
 type PredictionSummary = {
   total: number
@@ -353,10 +357,12 @@ function SensorTab() {
 
 function ThresholdTab() {
   const [configs, setConfigs] = useState<ChannelConfig[]>([])
+  const [judgementTypes, setJudgementTypes] = useState<JudgementType[]>([])
   const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
     client.get('/api/settings').then(res => setConfigs(res.data))
+    client.get('/api/judgement-types').then(res => setJudgementTypes(res.data))
   }, [])
 
   const showToast = (msg: string) => {
@@ -364,8 +370,14 @@ function ThresholdTab() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  const update = (id: number, field: string, value: number | boolean) =>
+  const update = (id: number, field: string, value: number | boolean | string) =>
     setConfigs(configs.map(c => c.sensor_channel_id === id ? { ...c, [field]: value } : c))
+
+  const updateParam = (id: number, key: string, value: number) =>
+    setConfigs(configs.map(c => c.sensor_channel_id === id
+      ? { ...c, judgement_params: { ...c.judgement_params, [key]: value } }
+      : c
+    ))
 
   const handleSave = async (c: ChannelConfig) => {
     await client.put(`/api/settings/${c.sensor_channel_id}`, {
@@ -374,6 +386,8 @@ function ThresholdTab() {
       slope_threshold: c.slope_threshold,
       regression_count: c.regression_count,
       trend_monitor: c.trend_monitor,
+      judgement_type: c.judgement_type,
+      judgement_params: c.judgement_params,
     })
     showToast(`${c.sensor_name} ${c.channel_name} を更新しました`)
   }
@@ -414,12 +428,22 @@ function ThresholdTab() {
                   <input type="number" value={c.upper_threshold} onChange={e => update(c.sensor_channel_id, 'upper_threshold', Number(e.target.value))} />
                   <label>下限閾値 ({c.unit})</label>
                   <input type="number" value={c.lower_threshold} onChange={e => update(c.sensor_channel_id, 'lower_threshold', Number(e.target.value))} />
-                  <label>傾き閾値 ({c.unit}/10分)</label>
-                  <input type="number" step="0.1" value={c.slope_threshold} onChange={e => update(c.sensor_channel_id, 'slope_threshold', Number(e.target.value))} />
-                  <label>回帰データ数</label>
-                  <input type="number" value={c.regression_count} onChange={e => update(c.sensor_channel_id, 'regression_count', Number(e.target.value))} />
                   <label>傾向監視</label>
                   <input type="checkbox" checked={c.trend_monitor} onChange={e => update(c.sensor_channel_id, 'trend_monitor', e.target.checked)} />
+                  {c.trend_monitor && <>
+                    <label>判定方法</label>
+                    <select value={c.judgement_type} onChange={e => update(c.sensor_channel_id, 'judgement_type', e.target.value)}>
+                      {judgementTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                    {c.judgement_type === 'linear' && <>
+                      <label>傾き閾値 ({c.unit}/10分)</label>
+                      <input type="number" step="0.1" value={c.slope_threshold} onChange={e => update(c.sensor_channel_id, 'slope_threshold', Number(e.target.value))} />
+                      <label>回帰データ数</label>
+                      <input type="number" value={c.regression_count} onChange={e => update(c.sensor_channel_id, 'regression_count', Number(e.target.value))} />
+                      <label>R²閾値</label>
+                      <input type="number" step="0.01" min="0" max="1" value={c.judgement_params?.r2_threshold ?? 0.75} onChange={e => updateParam(c.sensor_channel_id, 'r2_threshold', Number(e.target.value))} />
+                    </>}
+                  </>}
                 </div>
                 <button onClick={() => handleSave(c)} style={{ marginTop: '0.75rem' }}>更新</button>
               </div>
