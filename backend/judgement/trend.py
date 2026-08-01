@@ -76,21 +76,33 @@ class TrendJudgement:
             direction = '下降'
             limit = self.lower
 
+        # すでに閾値を超えている場合は到達済みとして扱う
+        secs_to_threshold = max(secs_to_threshold, 0)
+
         minutes_to_threshold = secs_to_threshold / 60
         now_jst = datetime.now(JST)
         predicted_dt = now_jst + timedelta(seconds=secs_to_threshold)
         predicted_str = predicted_dt.strftime('%Y/%m/%d %H:%M')
 
-        if minutes_to_threshold >= 60:
+        if secs_to_threshold == 0:
+            time_label = "すでに閾値超過中"
+        elif minutes_to_threshold >= 60:
             time_label = f"約{minutes_to_threshold / 60:.1f}時間後"
         else:
             time_label = f"約{int(minutes_to_threshold)}分後"
 
-        message = (
-            f"温度が{direction}傾向です"
-            f"（傾き：{slope_per_step:.2f}℃/ステップ，R²={r2:.2f}）．"
-            f"{time_label}（{predicted_str}）に{limit}℃に達します"
-        )
+        if secs_to_threshold == 0:
+            message = (
+                f"温度が{direction}傾向です"
+                f"（傾き：{slope_per_step:.2f}℃/ステップ，R²={r2:.2f}）．"
+                f"すでに{limit}℃の閾値を超過中です"
+            )
+        else:
+            message = (
+                f"温度が{direction}傾向です"
+                f"（傾き：{slope_per_step:.2f}℃/ステップ，R²={r2:.2f}）．"
+                f"{time_label}（{predicted_str}）に{limit}℃に達します"
+            )
 
         steps_to_threshold = secs_to_threshold / (self.interval_minutes * 60)
 
