@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from typing import Optional
 from backend.db import get_connection
 from backend.auth.utils import get_current_user, require_admin
 
@@ -7,15 +9,14 @@ router = APIRouter()
 
 @router.get("/api/sensors")
 def get_sensors(user: dict = Depends(get_current_user)):
-    """全センサとそのチャンネル定義を返す"""
     conn = get_connection()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, sensor_key, name, active FROM sensors ORDER BY id")
+        cur.execute("SELECT id, sensor_key, name, active, webhook_url FROM sensors ORDER BY id")
         sensors = cur.fetchall()
 
         result = []
-        for sensor_id, sensor_key, name, active in sensors:
+        for sensor_id, sensor_key, name, active, webhook_url in sensors:
             cur.execute(
                 "SELECT id, channel_no, name, unit FROM sensor_channels WHERE sensor_id = %s ORDER BY channel_no",
                 (sensor_id,)
@@ -29,6 +30,7 @@ def get_sensors(user: dict = Depends(get_current_user)):
                 "sensor_key": sensor_key,
                 "name": name,
                 "active": active,
+                "webhook_url": webhook_url,
                 "channels": channels,
             })
         return result
@@ -38,7 +40,6 @@ def get_sensors(user: dict = Depends(get_current_user)):
 
 @router.put("/api/admin/sensors/{sensor_id}/active")
 def toggle_sensor_active(sensor_id: int, user: dict = Depends(require_admin)):
-    """センサのアクティブ状態を切り替える（管理者のみ）"""
     conn = get_connection()
     try:
         cur = conn.cursor()
@@ -51,5 +52,26 @@ def toggle_sensor_active(sensor_id: int, user: dict = Depends(require_admin)):
             raise HTTPException(status_code=404, detail="センサが見つかりません")
         conn.commit()
         return {"active": row[0]}
+    finally:
+        conn.close()
+
+
+class WebhookUrlUpdate(BaseModel):
+    webhook_url: Optional[str] = None
+
+
+@router.put("/api/admin/sensors/{sensor_id}/webhook")
+def update_sensor_webhook(sensor_id: int, body: WebhookUrlUpdate, user: dict = Depends(require_admin)):
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE sensors SET webhook_url = %s WHERE id = %s RETURNING id",
+            (body.webhook_url or None, sensor_id)
+        )
+        if cur.fetchone() is None:
+            raise HTTPException(status_code=404, detail="センサが見つかりません")
+        conn.commit()
+        return {"status": "ok", "webhook_url": body.webhook_url or None}
     finally:
         conn.close()
