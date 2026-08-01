@@ -1,6 +1,7 @@
 import numpy as np
 from datetime import datetime, timedelta, timezone
 from backend.interfaces import MeasurementData
+from backend.judgement.base import BaseJudgement
 
 JST = timezone(timedelta(hours=9))
 UTC = timezone.utc
@@ -20,7 +21,7 @@ def _r2(y: np.ndarray, y_pred: np.ndarray) -> float:
     return float(1 - np.sum((y - y_pred) ** 2) / ss_tot)
 
 
-class TrendJudgement:
+class TrendJudgement(BaseJudgement):
     def __init__(self, slope_threshold: float, upper: float, lower: float,
                  interval_minutes: int = 10, r2_threshold: float = 0.75):
         self.slope_threshold = slope_threshold

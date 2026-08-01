@@ -5,7 +5,7 @@ import logging
 import os
 from backend.devices.sensor_map import SENSOR_MAP
 from backend.judgement.threshold import ThresholdJudgement
-from backend.judgement.trend import TrendJudgement
+from backend.judgement.factory import create_judgement
 from backend.judgement.prediction import is_prediction_tracking_enabled, save_prediction, verify_past_predictions
 from backend.notification.webhook import TeamsWebhook
 from backend.notification.email import load_email_notifier
@@ -111,13 +111,15 @@ def main():
                     continue
 
                 cur.execute(
-                    "SELECT upper_threshold, lower_threshold, slope_threshold, regression_count, trend_monitor FROM channel_config WHERE sensor_channel_id = %s",
+                    """SELECT upper_threshold, lower_threshold, trend_monitor,
+                              judgement_type, judgement_params
+                       FROM channel_config WHERE sensor_channel_id = %s""",
                     (channel_id,)
                 )
                 config = cur.fetchone()
                 if config is None:
                     continue
-                upper, lower, slope_threshold, regression_count, trend_monitor = config
+                upper, lower, trend_monitor, judgement_type, judgement_params = config
 
                 # 閾値異常判定
                 threshold = ThresholdJudgement(upper=upper, lower=lower)
@@ -136,6 +138,9 @@ def main():
 
                 # 傾向異常判定
                 if trend_monitor:
+                    params = judgement_params or {}
+                    regression_count = int(params.get('regression_count', 10))
+
                     cur.execute(
                         "SELECT timestamp, value FROM measurements WHERE sensor_channel_id = %s ORDER BY timestamp DESC LIMIT %s",
                         (channel_id, regression_count)
@@ -146,8 +151,13 @@ def main():
                         for row in rows
                     ]
 
-                    trend = TrendJudgement(slope_threshold=slope_threshold, upper=upper, lower=lower, interval_minutes=10)
-                    trend_result = trend.judge(trend_data)
+                    try:
+                        judgement = create_judgement(judgement_type or 'linear', params, upper, lower)
+                    except ValueError as e:
+                        logger.error(f"{sensor_key} 判定クラス生成エラー: {e}")
+                        continue
+
+                    trend_result = judgement.judge(trend_data)
 
                     if trend_result["is_abnormal"]:
                         cur.execute(
