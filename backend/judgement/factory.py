@@ -8,13 +8,13 @@ logger = logging.getLogger(__name__)
 
 def _load_plugins() -> tuple[dict, dict, dict]:
     """backend/plugins/ 以下の .py ファイルを自動スキャンして判定クラスを登録する。"""
-    import backend.plugins as plugins_pkg
+    import backend.judgement.plugins as plugins_pkg
     registry: dict[str, type[BaseJudgement]] = {}
     labels: dict[str, str] = {}
     params: dict[str, list] = {}
 
     for finder, module_name, _ in pkgutil.iter_modules(plugins_pkg.__path__):
-        full_name = f"backend.plugins.{module_name}"
+        full_name = f"backend.judgement.plugins.{module_name}"
         try:
             mod = importlib.import_module(full_name)
         except Exception as e:
