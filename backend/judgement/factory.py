@@ -6,11 +6,12 @@ from backend.judgement.base import BaseJudgement
 logger = logging.getLogger(__name__)
 
 
-def _load_plugins() -> tuple[dict[str, type[BaseJudgement]], dict[str, str]]:
+def _load_plugins() -> tuple[dict, dict, dict]:
     """backend/plugins/ 以下の .py ファイルを自動スキャンして判定クラスを登録する。"""
     import backend.plugins as plugins_pkg
     registry: dict[str, type[BaseJudgement]] = {}
     labels: dict[str, str] = {}
+    params: dict[str, list] = {}
 
     for finder, module_name, _ in pkgutil.iter_modules(plugins_pkg.__path__):
         full_name = f"backend.plugins.{module_name}"
@@ -23,6 +24,7 @@ def _load_plugins() -> tuple[dict[str, type[BaseJudgement]], dict[str, str]]:
         judgement_type = getattr(mod, "JUDGEMENT_TYPE", None)
         judgement_label = getattr(mod, "JUDGEMENT_LABEL", judgement_type)
         judgement_class = getattr(mod, "JUDGEMENT_CLASS", None)
+        judgement_params = getattr(mod, "JUDGEMENT_PARAMS", [])
 
         if not judgement_type or not judgement_class:
             logger.warning(f"プラグイン ({full_name}): JUDGEMENT_TYPE または JUDGEMENT_CLASS が未定義のためスキップ")
@@ -34,21 +36,22 @@ def _load_plugins() -> tuple[dict[str, type[BaseJudgement]], dict[str, str]]:
 
         registry[judgement_type] = judgement_class
         labels[judgement_type] = judgement_label
+        params[judgement_type] = judgement_params
         logger.info(f"プラグイン登録: {judgement_type} ({full_name})")
 
-    return registry, labels
+    return registry, labels, params
 
 
 # モジュールロード時に一度だけプラグインをスキャン
-_plugin_registry, _plugin_labels = _load_plugins()
-
-_REGISTRY: dict[str, type[BaseJudgement]] = _plugin_registry
-_LABELS: dict[str, str] = _plugin_labels
+_REGISTRY, _LABELS, _PARAMS = _load_plugins()
 
 
 def get_judgement_types() -> list[dict]:
-    """UIのセレクトボックス用に判定タイプ一覧を返す。"""
-    return [{"value": k, "label": v} for k, v in _LABELS.items()]
+    """UIのセレクトボックス用に判定タイプ一覧（パラメータ定義込み）を返す。"""
+    return [
+        {"value": k, "label": _LABELS[k], "params": _PARAMS.get(k, [])}
+        for k in _LABELS
+    ]
 
 
 def create_judgement(judgement_type: str, params: dict, upper: float, lower: float) -> BaseJudgement:

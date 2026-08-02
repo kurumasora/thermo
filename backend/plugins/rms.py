@@ -4,6 +4,9 @@ from backend.interfaces import MeasurementData
 
 JUDGEMENT_TYPE = "rms"
 JUDGEMENT_LABEL = "振動RMS"
+JUDGEMENT_PARAMS = [
+    {"key": "rms_window", "label": "ウィンドウ幅 (件数)", "type": "number", "default": 10, "step": 1, "min": 1},
+]
 
 
 class RMSJudgement(BaseJudgement):

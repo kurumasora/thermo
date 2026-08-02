@@ -3,6 +3,10 @@ from backend.interfaces import MeasurementData
 
 JUDGEMENT_TYPE = "exponential_smoothing"
 JUDGEMENT_LABEL = "指数平滑"
+JUDGEMENT_PARAMS = [
+    {"key": "alpha", "label": "平滑化係数 α (0=過去重視, 1=直近重視)", "type": "number", "default": 0.3, "step": 0.05, "min": 0, "max": 1},
+    {"key": "margin", "label": "警告マージン (閾値からの距離)", "type": "number", "default": 5.0, "step": 0.5, "min": 0},
+]
 
 
 class ExponentialSmoothingJudgement(BaseJudgement):

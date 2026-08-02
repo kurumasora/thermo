@@ -5,6 +5,11 @@ from backend.interfaces import MeasurementData
 
 JUDGEMENT_TYPE = "linear"
 JUDGEMENT_LABEL = "線形回帰"
+JUDGEMENT_PARAMS = [
+    {"key": "slope_threshold", "label": "傾き閾値 (単位/10分)", "type": "number", "default": 1.0, "step": 0.1, "min": 0},
+    {"key": "regression_count", "label": "回帰データ数", "type": "number", "default": 10, "step": 1, "min": 2},
+    {"key": "r2_threshold", "label": "R²閾値", "type": "number", "default": 0.75, "step": 0.01, "min": 0, "max": 1},
+]
 
 JST = timezone(timedelta(hours=9))
 UTC = timezone.utc
