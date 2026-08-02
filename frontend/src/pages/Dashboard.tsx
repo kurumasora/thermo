@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer
 } from 'recharts'
@@ -25,40 +25,6 @@ function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
-    return localStorage.getItem('alertSoundEnabled') !== 'false'
-  })
-  const prevDangerRef = useRef<Set<number>>(new Set())
-
-  const playAlertSound = useCallback(() => {
-    try {
-      const ctx = new AudioContext()
-      const times = [0, 0.3, 0.6]
-      times.forEach(t => {
-        const osc = ctx.createOscillator()
-        const gain = ctx.createGain()
-        osc.connect(gain)
-        gain.connect(ctx.destination)
-        osc.type = 'sine'
-        osc.frequency.setValueAtTime(880, ctx.currentTime + t)
-        osc.frequency.setValueAtTime(660, ctx.currentTime + t + 0.15)
-        gain.gain.setValueAtTime(0.4, ctx.currentTime + t)
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.28)
-        osc.start(ctx.currentTime + t)
-        osc.stop(ctx.currentTime + t + 0.28)
-      })
-    } catch (e) {
-      console.warn('アラート音再生エラー:', e)
-    }
-  }, [])
-
-  const toggleSound = () => {
-    setSoundEnabled(prev => {
-      const next = !prev
-      localStorage.setItem('alertSoundEnabled', String(next))
-      return next
-    })
-  }
 
   const fetchData = useCallback(() => {
     Promise.all([
@@ -72,24 +38,6 @@ function Dashboard() {
       setLatest(lRes.data)
       setConfigs(cRes.data)
       setLastUpdated(new Date())
-
-      // 新たに異常になったチャンネルがあれば音を鳴らす
-      const newLatest: Record<string, LatestEntry> = lRes.data
-      const newConfigs: ChannelConfig[] = cRes.data
-      const currentDanger = new Set<number>(
-        newConfigs
-          .filter(cfg => {
-            const lat = newLatest[String(cfg.sensor_channel_id)]
-            if (!lat) return false
-            return lat.value > cfg.upper_threshold || lat.value < cfg.lower_threshold
-          })
-          .map(cfg => cfg.sensor_channel_id)
-      )
-      const hasNew = [...currentDanger].some(id => !prevDangerRef.current.has(id))
-      if (hasNew) {
-        setSoundEnabled(prev => { if (prev) playAlertSound(); return prev })
-      }
-      prevDangerRef.current = currentDanger
     })
   }, [])
 
@@ -122,29 +70,13 @@ function Dashboard() {
 
   return (
     <div style={{ padding: '1.5rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem', marginBottom: '1.5rem' }}>
         <h1 style={{ margin: 0 }}>ダッシュボード</h1>
         {lastUpdated && (
           <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
             最終更新：{lastUpdated.toLocaleTimeString('ja-JP')}
           </span>
         )}
-        <button
-          onClick={toggleSound}
-          title={soundEnabled ? 'アラーム音をOFFにする' : 'アラーム音をONにする'}
-          style={{
-            marginLeft: 'auto',
-            padding: '0.35rem 0.85rem',
-            borderRadius: '6px',
-            border: '1px solid #e2e8f0',
-            background: soundEnabled ? '#fef3c7' : '#f1f5f9',
-            color: soundEnabled ? '#92400e' : '#64748b',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-          }}
-        >
-          {soundEnabled ? '🔔 アラーム音 ON' : '🔕 アラーム音 OFF'}
-        </button>
       </div>
 
       <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
