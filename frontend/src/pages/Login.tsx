@@ -45,10 +45,9 @@ function Login() {
         width: '100%', maxWidth: '360px',
       }}>
         <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', letterSpacing: '-0.3px' }}>
+          <div style={{ fontSize: '1.25rem', fontWeight: 400, color: '#0f172a', letterSpacing: '-0.3px' }}>
             Thermonitor
           </div>
-          <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.25rem' }}>温湿度監視システム</div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
