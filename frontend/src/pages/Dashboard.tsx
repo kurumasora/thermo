@@ -95,67 +95,70 @@ function Dashboard() {
         )}
       </div>
 
-      {/* 現在値カード */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-        {sensors.map(sensor =>
-          sensor.channels.map(ch => {
-            const lat = latest[String(ch.id)]
-            const cfg = getConfig(ch.id)
-            const danger = isChannelDanger(ch.id)
-            return (
-              <ValueCard
-                key={ch.id}
-                sensorName={sensor.name}
-                channelName={ch.name}
-                value={lat?.value}
-                unit={ch.unit}
-                upper={cfg?.upper_threshold}
-                lower={cfg?.lower_threshold}
-                danger={danger}
-                timestamp={lat?.timestamp}
-              />
-            )
-          })
-        )}
-      </div>
-
-      {/* グラフ */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+      {/* センサごとに現在値カード＋グラフをまとめたカラムレイアウト */}
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${sensors.length || 1}, 1fr)`, gap: '1rem', marginBottom: '1.5rem' }}>
         {sensors.map(sensor => (
-          <div key={sensor.id} style={cardStyle}>
-            <div style={{ marginBottom: '1rem' }}>
-              <h2 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#0f172a' }}>
-                {sensor.name} <span style={{ fontWeight: 400, color: '#94a3b8', fontSize: '0.8rem' }}>直近24件の推移</span>
-              </h2>
+          <div key={sensor.id} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+            {/* 現在値カード群 */}
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${sensor.channels.length}, 1fr)`, gap: '0.75rem' }}>
+              {sensor.channels.map(ch => {
+                const lat = latest[String(ch.id)]
+                const cfg = getConfig(ch.id)
+                const danger = isChannelDanger(ch.id)
+                return (
+                  <ValueCard
+                    key={ch.id}
+                    sensorName={sensor.name}
+                    channelName={ch.name}
+                    value={lat?.value}
+                    unit={ch.unit}
+                    upper={cfg?.upper_threshold}
+                    lower={cfg?.lower_threshold}
+                    danger={danger}
+                    timestamp={lat?.timestamp}
+                  />
+                )
+              })}
             </div>
-            <ResponsiveContainer width="100%" height={220}>
-              <LineChart
-                data={graphTimestamps.map(ts => {
-                  const row: Record<string, string | number | null> = { time: formatTimestamp(ts).slice(5) }
-                  for (const ch of sensor.channels) row[ch.name] = measureMap[ts]?.[ch.id] ?? null
-                  return row
-                })}
-                margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} interval="preserveStartEnd" />
-                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8' }} unit={sensor.channels[0]?.unit} width={48} />
-                <Tooltip
-                  contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8rem' }}
-                  formatter={(v, name) => [`${v}${sensor.channels.find(c => c.name === name)?.unit ?? ''}`, name]}
-                />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '0.8rem' }} />
-                {sensor.channels.flatMap((ch, i) => {
-                  const cfg = getConfig(ch.id)
-                  const color = LINE_COLORS[i % LINE_COLORS.length]
-                  return [
-                    cfg ? <ReferenceLine key={`u${ch.id}`} y={cfg.upper_threshold} stroke={color} strokeDasharray="4 2" strokeOpacity={0.5} /> : null,
-                    cfg ? <ReferenceLine key={`l${ch.id}`} y={cfg.lower_threshold} stroke={color} strokeDasharray="4 2" strokeOpacity={0.5} /> : null,
-                    <Line key={ch.id} type="monotone" dataKey={ch.name} stroke={color} dot={false} strokeWidth={2} connectNulls />,
-                  ]
-                })}
-              </LineChart>
-            </ResponsiveContainer>
+
+            {/* グラフ */}
+            <div style={{ ...cardStyle, flex: 1 }}>
+              <div style={{ marginBottom: '0.75rem' }}>
+                <h2 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#0f172a' }}>
+                  {sensor.name} <span style={{ fontWeight: 400, color: '#94a3b8', fontSize: '0.8rem' }}>直近24件の推移</span>
+                </h2>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart
+                  data={graphTimestamps.map(ts => {
+                    const row: Record<string, string | number | null> = { time: formatTimestamp(ts).slice(5) }
+                    for (const ch of sensor.channels) row[ch.name] = measureMap[ts]?.[ch.id] ?? null
+                    return row
+                  })}
+                  margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} interval="preserveStartEnd" />
+                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8' }} unit={sensor.channels[0]?.unit} width={48} />
+                  <Tooltip
+                    contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8rem' }}
+                    formatter={(v, name) => [`${v}${sensor.channels.find(c => c.name === name)?.unit ?? ''}`, name]}
+                  />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '0.8rem' }} />
+                  {sensor.channels.flatMap((ch, i) => {
+                    const cfg = getConfig(ch.id)
+                    const color = LINE_COLORS[i % LINE_COLORS.length]
+                    return [
+                      cfg ? <ReferenceLine key={`u${ch.id}`} y={cfg.upper_threshold} stroke={color} strokeDasharray="4 2" strokeOpacity={0.5} /> : null,
+                      cfg ? <ReferenceLine key={`l${ch.id}`} y={cfg.lower_threshold} stroke={color} strokeDasharray="4 2" strokeOpacity={0.5} /> : null,
+                      <Line key={ch.id} type="monotone" dataKey={ch.name} stroke={color} dot={false} strokeWidth={2} connectNulls />,
+                    ]
+                  })}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
           </div>
         ))}
       </div>
