@@ -59,7 +59,7 @@ function Alerts() {
   return (
     <div style={{ background: '#f1f5f9', minHeight: '100vh', padding: '1.75rem 2rem' }}>
 
-      <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: '0 0 1.5rem' }}>アラート履歴</h1>
+      <h1 style={{ fontSize: '1.4rem', fontWeight: 400, color: '#0f172a', margin: '0 0 1.5rem' }}>アラート履歴</h1>
 
       <div style={{ background: '#fff', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', padding: '1.25rem 1.5rem' }}>
 

@@ -76,7 +76,7 @@ function Dashboard() {
       {/* ヘッダー */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>ダッシュボード</h1>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 400, color: '#0f172a', margin: 0 }}>ダッシュボード</h1>
           {lastUpdated && (
             <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: '#94a3b8' }}>
               最終更新：{lastUpdated.toLocaleTimeString('ja-JP')}

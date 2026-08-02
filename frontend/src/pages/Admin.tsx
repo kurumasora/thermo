@@ -35,7 +35,7 @@ function Admin() {
 
   return (
     <div style={{ background: '#f1f5f9', minHeight: '100vh', padding: '1.75rem 2rem' }}>
-      <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: '0 0 1.25rem' }}>管理</h1>
+      <h1 style={{ fontSize: '1.4rem', fontWeight: 400, color: '#0f172a', margin: '0 0 1.25rem' }}>管理</h1>
 
       {/* サブタブ */}
       <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '1.5rem', background: '#e2e8f0', borderRadius: '8px', padding: '3px' }}>
