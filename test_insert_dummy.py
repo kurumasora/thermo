@@ -33,7 +33,6 @@ from backend.judgement.threshold import ThresholdJudgement
 from backend.judgement.factory import create_judgement
 from backend.notification.webhook import TeamsWebhook
 from backend.notification.email import load_email_notifier
-from backend.judgement.prediction import is_prediction_tracking_enabled, save_prediction
 
 
 def list_sensors(cur):
@@ -138,24 +137,12 @@ def run_trend_check(cur, conn, channel_id: int, channel_no: int, data: Measureme
     if result["is_abnormal"]:
         print(f"  [傾向異常] {result['message']}")
         cur.execute(
-            "INSERT INTO alert_history (timestamp, sensor_channel_id, alert_type, value, message, predicted_steps) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+            "INSERT INTO alert_history (timestamp, sensor_channel_id, alert_type, value, message, predicted_steps) VALUES (%s, %s, %s, %s, %s, %s)",
             (data.timestamp, channel_id, "trend", data.value, result["message"], result.get("predicted_steps"))
         )
-        alert_id = cur.fetchone()[0]
         conn.commit()
         send_notifications(result["message"], webhook_url, webhook_enabled,
                            email_enabled, email_recipients, email_notifier)
-        if is_prediction_tracking_enabled() and result.get("predicted_at") is not None:
-            save_prediction(
-                alert_history_id=alert_id,
-                sensor_channel_id=channel_id,
-                direction=result["direction"],
-                limit_value=result["limit_value"],
-                predicted_at=result["predicted_at"],
-            )
-            print("  予測精度レコードを保存しました")
-        else:
-            print("  予測追跡は無効（管理画面の「予測精度」タブで有効化できます）")
     else:
         print("  傾向異常なし")
 

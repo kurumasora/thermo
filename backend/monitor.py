@@ -6,7 +6,6 @@ import os
 from backend.devices.sensor_map import SENSOR_MAP
 from backend.judgement.threshold import ThresholdJudgement
 from backend.judgement.factory import create_judgement
-from backend.judgement.prediction import is_prediction_tracking_enabled, save_prediction, verify_past_predictions
 from backend.notification.webhook import TeamsWebhook
 from backend.notification.email import load_email_notifier
 from backend.db import get_connection
@@ -162,28 +161,15 @@ def main():
 
                     if trend_result["is_abnormal"]:
                         cur.execute(
-                            "INSERT INTO alert_history (timestamp, sensor_channel_id, alert_type, value, message, predicted_steps) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                            "INSERT INTO alert_history (timestamp, sensor_channel_id, alert_type, value, message, predicted_steps) VALUES (%s, %s, %s, %s, %s, %s)",
                             (data.timestamp, channel_id, "trend", data.value, trend_result["message"], trend_result["predicted_steps"])
                         )
-                        alert_id = cur.fetchone()[0]
                         conn.commit()
                         logger.warning(f"傾向異常アラート: {trend_result['message']}")
                         send_notifications(
                             trend_result["message"], sensor_webhook_url,
                             webhook_enabled, email_enabled, email_recipients, email_notifier
                         )
-
-                        if is_prediction_tracking_enabled() and trend_result.get("predicted_at") is not None:
-                            save_prediction(
-                                alert_history_id=alert_id,
-                                sensor_channel_id=channel_id,
-                                direction=trend_result["direction"],
-                                limit_value=trend_result["limit_value"],
-                                predicted_at=trend_result["predicted_at"],
-                            )
-
-        if is_prediction_tracking_enabled():
-            verify_past_predictions()
 
     except Exception as e:
         logger.error(f"monitor.py 実行エラー: {e}", exc_info=True)
