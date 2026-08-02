@@ -30,8 +30,6 @@ type ChannelInput = {
   unit: string
   upper_threshold: number
   lower_threshold: number
-  slope_threshold: number
-  regression_count: number
   trend_monitor: boolean
 }
 
@@ -164,8 +162,6 @@ const emptyChannel = (): ChannelInput => ({
   unit: '℃',
   upper_threshold: 40,
   lower_threshold: 0,
-  slope_threshold: 1.0,
-  regression_count: 10,
   trend_monitor: false,
 })
 
@@ -301,10 +297,6 @@ function SensorTab() {
                 <input type="number" value={ch.upper_threshold} onChange={e => updateChannel(idx, 'upper_threshold', Number(e.target.value))} />
                 <label>下限閾値</label>
                 <input type="number" value={ch.lower_threshold} onChange={e => updateChannel(idx, 'lower_threshold', Number(e.target.value))} />
-                <label>傾き閾値</label>
-                <input type="number" step="0.1" value={ch.slope_threshold} onChange={e => updateChannel(idx, 'slope_threshold', Number(e.target.value))} />
-                <label>回帰データ数</label>
-                <input type="number" value={ch.regression_count} onChange={e => updateChannel(idx, 'regression_count', Number(e.target.value))} />
               </div>
             </div>
           ))}

@@ -93,8 +93,6 @@ class ChannelInput(BaseModel):
     unit: str
     upper_threshold: float
     lower_threshold: float
-    slope_threshold: float = 1.0
-    regression_count: int = 10
     trend_monitor: bool = False
 
 
@@ -137,10 +135,9 @@ def create_sensor(body: SensorCreate, user: dict = Depends(require_admin)):
             channel_id = cur.fetchone()[0]
             cur.execute(
                 """INSERT INTO channel_config
-                   (sensor_channel_id, upper_threshold, lower_threshold, slope_threshold, regression_count, trend_monitor)
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                (channel_id, ch.upper_threshold, ch.lower_threshold,
-                 ch.slope_threshold, ch.regression_count, ch.trend_monitor)
+                   (sensor_channel_id, upper_threshold, lower_threshold, trend_monitor)
+                   VALUES (%s, %s, %s, %s)""",
+                (channel_id, ch.upper_threshold, ch.lower_threshold, ch.trend_monitor)
             )
 
         conn.commit()

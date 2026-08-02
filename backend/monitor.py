@@ -139,7 +139,8 @@ def main():
                 # 傾向異常判定
                 if trend_monitor:
                     params = judgement_params or {}
-                    regression_count = int(params.get('regression_count', 10))
+                    # regression_countはjudgement_paramsから取得。未定義の判定方法は直近50件を上限として取得
+                    regression_count = int(params.get('regression_count', 50))
 
                     cur.execute(
                         "SELECT timestamp, value FROM measurements WHERE sensor_channel_id = %s ORDER BY timestamp DESC LIMIT %s",
