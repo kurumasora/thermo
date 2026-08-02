@@ -60,28 +60,6 @@ type JudgementParamDef = {
 
 type JudgementType = { value: string; label: string; params: JudgementParamDef[] }
 
-type PredictionSummary = {
-  total: number
-  verified: number
-  hits: number
-  misses: number
-  pending: number
-  accuracy_pct: number | null
-}
-
-type PredictionRecord = {
-  id: number
-  channel_name: string
-  sensor_name: string
-  direction: string
-  limit_value: number
-  predicted_at: string
-  created_at: string
-  verified: boolean
-  verified_at: string | null
-  outcome: string | null
-  alert_message: string
-}
 
 type SmtpConfig = {
   host: string | null
@@ -105,13 +83,12 @@ type NotificationSensor = {
   recipients: EmailRecipient[]
 }
 
-type Tab = 'sensor' | 'threshold' | 'user' | 'prediction' | 'notification'
+type Tab = 'sensor' | 'threshold' | 'user' | 'notification'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'sensor', label: 'センサ管理' },
   { key: 'threshold', label: '閾値設定' },
   { key: 'user', label: 'ユーザー管理' },
-  { key: 'prediction', label: '予測精度' },
   { key: 'notification', label: '通知設定' },
 ]
 
@@ -150,7 +127,6 @@ function Admin() {
       {tab === 'sensor' && <SensorTab />}
       {tab === 'threshold' && <ThresholdTab />}
       {tab === 'user' && <UserTab />}
-      {tab === 'prediction' && <PredictionTab />}
       {tab === 'notification' && <NotificationTab />}
     </div>
   )
@@ -584,114 +560,6 @@ function UserTab() {
   )
 }
 
-function PredictionTab() {
-  const [enabled, setEnabled] = useState<boolean | null>(null)
-  const [summary, setSummary] = useState<PredictionSummary | null>(null)
-  const [records, setRecords] = useState<PredictionRecord[]>([])
-  const [toast, setToast] = useState<string | null>(null)
-
-  const showToast = (msg: string) => {
-    setToast(msg)
-    setTimeout(() => setToast(null), 3000)
-  }
-
-  const fetchAll = () => {
-    client.get('/api/admin/prediction/settings').then(r => setEnabled(r.data.enabled))
-    client.get('/api/admin/prediction/report').then(r => {
-      setSummary(r.data.summary)
-      setRecords(r.data.records)
-    })
-  }
-
-  useEffect(() => { fetchAll() }, [])
-
-  const toggleEnabled = async () => {
-    const next = !enabled
-    await client.put('/api/admin/prediction/settings', { enabled: next })
-    setEnabled(next)
-    showToast(next ? '予測追跡を有効にしました' : '予測追跡を無効にしました')
-  }
-
-  const outcomeLabel = (outcome: string | null, verified: boolean) => {
-    if (!verified) return <span style={{ color: '#64748b' }}>未検証</span>
-    if (outcome === 'hit') return <span style={{ color: '#16a34a', fontWeight: 'bold' }}>的中</span>
-    return <span style={{ color: '#ef4444', fontWeight: 'bold' }}>外れ</span>
-  }
-
-  return (
-    <>
-      {toast && (
-        <div style={{
-          position: 'fixed', top: '1rem', right: '1rem', zIndex: 1000,
-          background: '#1e293b', color: '#fff', padding: '0.75rem 1.25rem',
-          borderRadius: '6px', fontSize: '0.9rem',
-        }}>
-          {toast}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-        <h2 style={{ margin: 0 }}>傾向予測 精度レポート</h2>
-        {enabled !== null && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', cursor: 'pointer' }}>
-            <input type="checkbox" checked={enabled} onChange={toggleEnabled} />
-            予測追跡を有効にする
-          </label>
-        )}
-      </div>
-
-      {summary && (
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
-          <StatCard label="総予測数" value={String(summary.total)} />
-          <StatCard label="検証済み" value={String(summary.verified)} />
-          <StatCard label="的中" value={String(summary.hits)} color="#16a34a" />
-          <StatCard label="外れ" value={String(summary.misses)} color="#ef4444" />
-          <StatCard label="未検証" value={String(summary.pending)} color="#64748b" />
-          <StatCard
-            label="的中率"
-            value={summary.accuracy_pct != null ? `${summary.accuracy_pct}%` : '—'}
-            color={summary.accuracy_pct != null && summary.accuracy_pct >= 70 ? '#16a34a' : '#f59e0b'}
-          />
-        </div>
-      )}
-
-      <h3 style={{ marginBottom: '0.75rem' }}>予測履歴（直近50件）</h3>
-      <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-        <thead>
-          <tr>
-            <th style={thStyle}>発報日時</th>
-            <th style={thStyle}>センサ / チャンネル</th>
-            <th style={thStyle}>方向</th>
-            <th style={thStyle}>予測到達閾値</th>
-            <th style={thStyle}>予測到達時刻</th>
-            <th style={thStyle}>結果</th>
-            <th style={thStyle}>検証日時</th>
-          </tr>
-        </thead>
-        <tbody>
-          {records.map(r => (
-            <tr key={r.id} style={{ background: r.outcome === 'hit' ? '#f0fdf4' : r.outcome === 'miss' ? '#fef2f2' : undefined }}>
-              <td style={tdStyle}>{formatTimestamp(r.created_at)}</td>
-              <td style={tdStyle}>{r.sensor_name}<br /><span style={{ fontSize: '0.8rem', color: '#64748b' }}>{r.channel_name}</span></td>
-              <td style={tdStyle}>{r.direction === 'up' ? '↑ 上昇' : '↓ 下降'}</td>
-              <td style={tdStyle}>{r.limit_value}℃</td>
-              <td style={tdStyle}>{formatTimestamp(r.predicted_at)}</td>
-              <td style={tdStyle}>{outcomeLabel(r.outcome, r.verified)}</td>
-              <td style={tdStyle}>{r.verified_at ? formatTimestamp(r.verified_at) : '—'}</td>
-            </tr>
-          ))}
-          {records.length === 0 && (
-            <tr>
-              <td colSpan={7} style={{ ...tdStyle, textAlign: 'center', color: '#64748b' }}>
-                予測データがありません
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </>
-  )
-}
 
 function NotificationTab() {
   const [smtp, setSmtp] = useState<SmtpConfig>({ host: '', port: 587, username: '', from_address: '', password_set: false })
