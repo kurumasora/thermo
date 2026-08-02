@@ -10,6 +10,8 @@ router = APIRouter()
 # 判定タイプ一覧（UIのセレクトボックス用）
 JUDGEMENT_TYPES = [
     {"value": "linear", "label": "線形回帰"},
+    {"value": "polynomial", "label": "2次多項式回帰"},
+    {"value": "rms", "label": "振動RMS"},
 ]
 
 
