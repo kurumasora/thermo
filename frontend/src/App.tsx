@@ -12,19 +12,21 @@ function Layout() {
   const showNavbar = location.pathname !== '/login'
 
   return (
-    <>
+    <div style={{ display: 'flex', minHeight: '100svh' }}>
       {showNavbar && <Navbar />}
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
-        <Route path="/alerts" element={<RequireAuth><Alerts /></RequireAuth>} />
-        <Route path="/change-password" element={<RequireAuth><ChangePassword /></RequireAuth>} />
-        <Route path="/settings" element={<Navigate to="/admin?tab=threshold" />} />
-        <Route path="/prediction" element={<Navigate to="/admin?tab=prediction" />} />
-        <Route path="/admin" element={<RequireAuth requireAdmin><Admin /></RequireAuth>} />
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
-    </>
+      <main style={{ flex: 1, minWidth: 0 }}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<RequireAuth><Dashboard /></RequireAuth>} />
+          <Route path="/alerts" element={<RequireAuth><Alerts /></RequireAuth>} />
+          <Route path="/change-password" element={<RequireAuth><ChangePassword /></RequireAuth>} />
+          <Route path="/settings" element={<Navigate to="/admin?tab=threshold" />} />
+          <Route path="/prediction" element={<Navigate to="/admin?tab=prediction" />} />
+          <Route path="/admin" element={<RequireAuth requireAdmin><Admin /></RequireAuth>} />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </main>
+    </div>
   )
 }
 
