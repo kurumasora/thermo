@@ -39,8 +39,6 @@ type ChannelConfig = {
   sensor_channel_id: number
   upper_threshold: number
   lower_threshold: number
-  slope_threshold: number
-  regression_count: number
   trend_monitor: boolean
   channel_no: number
   channel_name: string
@@ -393,8 +391,6 @@ function ThresholdTab() {
     await client.put(`/api/settings/${c.sensor_channel_id}`, {
       upper_threshold: c.upper_threshold,
       lower_threshold: c.lower_threshold,
-      slope_threshold: c.slope_threshold,
-      regression_count: c.regression_count,
       trend_monitor: c.trend_monitor,
       judgement_type: c.judgement_type,
       judgement_params: c.judgement_params,

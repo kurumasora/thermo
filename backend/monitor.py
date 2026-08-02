@@ -172,7 +172,7 @@ def main():
                             webhook_enabled, email_enabled, email_recipients, email_notifier
                         )
 
-                        if is_prediction_tracking_enabled():
+                        if is_prediction_tracking_enabled() and trend_result.get("predicted_at") is not None:
                             save_prediction(
                                 alert_history_id=alert_id,
                                 sensor_channel_id=channel_id,
