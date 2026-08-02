@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 from backend.db import get_connection
 from backend.auth.utils import get_current_user, require_admin
-from backend.judgement.factory import create_judgement, get_judgement_types
+from backend.judgement.factory import get_judgement_types
 
 router = APIRouter()
 
@@ -22,7 +22,7 @@ def get_settings(user: dict = Depends(get_current_user)):
         cur.execute(
             """
             SELECT cc.sensor_channel_id, cc.upper_threshold, cc.lower_threshold,
-                   cc.slope_threshold, cc.regression_count, cc.trend_monitor,
+                   cc.trend_monitor,
                    sc.channel_no, sc.name AS channel_name, sc.unit,
                    s.id AS sensor_id, s.name AS sensor_name, s.sensor_key,
                    cc.judgement_type, cc.judgement_params
@@ -38,17 +38,15 @@ def get_settings(user: dict = Depends(get_current_user)):
                 "sensor_channel_id": r[0],
                 "upper_threshold": r[1],
                 "lower_threshold": r[2],
-                "slope_threshold": r[3],
-                "regression_count": r[4],
-                "trend_monitor": r[5],
-                "channel_no": r[6],
-                "channel_name": r[7],
-                "unit": r[8],
-                "sensor_id": r[9],
-                "sensor_name": r[10],
-                "sensor_key": r[11],
-                "judgement_type": r[12] or "linear",
-                "judgement_params": r[13] or {},
+                "trend_monitor": r[3],
+                "channel_no": r[4],
+                "channel_name": r[5],
+                "unit": r[6],
+                "sensor_id": r[7],
+                "sensor_name": r[8],
+                "sensor_key": r[9],
+                "judgement_type": r[10] or "linear",
+                "judgement_params": r[11] or {},
             }
             for r in rows
         ]
@@ -59,8 +57,6 @@ def get_settings(user: dict = Depends(get_current_user)):
 class SettingsUpdate(BaseModel):
     upper_threshold: float
     lower_threshold: float
-    slope_threshold: float
-    regression_count: int
     trend_monitor: bool
     judgement_type: str = "linear"
     judgement_params: Optional[dict] = None
@@ -68,16 +64,7 @@ class SettingsUpdate(BaseModel):
 
 @router.put("/api/settings/{sensor_channel_id}")
 def update_settings(sensor_channel_id: int, body: SettingsUpdate, user: dict = Depends(require_admin)):
-    # judgement_paramsをjudgement_typeに合わせて構築
-    if body.judgement_type == "linear":
-        params = {
-            "slope_threshold": body.slope_threshold,
-            "regression_count": body.regression_count,
-            "r2_threshold": (body.judgement_params or {}).get("r2_threshold", 0.75),
-        }
-    else:
-        params = body.judgement_params or {}
-
+    params = body.judgement_params or {}
     conn = get_connection()
     try:
         cur = conn.cursor()
@@ -85,13 +72,11 @@ def update_settings(sensor_channel_id: int, body: SettingsUpdate, user: dict = D
             """
             UPDATE channel_config
             SET upper_threshold = %s, lower_threshold = %s,
-                slope_threshold = %s, regression_count = %s, trend_monitor = %s,
-                judgement_type = %s, judgement_params = %s
+                trend_monitor = %s, judgement_type = %s, judgement_params = %s
             WHERE sensor_channel_id = %s
             """,
             (body.upper_threshold, body.lower_threshold,
-             body.slope_threshold, body.regression_count, body.trend_monitor,
-             body.judgement_type, json.dumps(params),
+             body.trend_monitor, body.judgement_type, json.dumps(params),
              sensor_channel_id)
         )
         conn.commit()

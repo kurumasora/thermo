@@ -143,7 +143,7 @@ def run_trend_check(cur, conn, channel_id: int, channel_no: int, data: Measureme
         conn.commit()
         send_notifications(result["message"], webhook_url, webhook_enabled,
                            email_enabled, email_recipients, email_notifier)
-        if is_prediction_tracking_enabled():
+        if is_prediction_tracking_enabled() and result.get("predicted_at") is not None:
             save_prediction(
                 alert_history_id=alert_id,
                 sensor_channel_id=channel_id,
