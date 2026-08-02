@@ -1,12 +1,20 @@
 import numpy as np
 from datetime import datetime, timedelta, timezone
-from backend.interfaces import MeasurementData
 from backend.judgement.base import BaseJudgement
+from backend.interfaces import MeasurementData
+
+JUDGEMENT_TYPE = "linear"
+JUDGEMENT_LABEL = "線形回帰"
+JUDGEMENT_PARAMS = [
+    {"key": "slope_threshold", "label": "傾き閾値 (単位/10分)", "type": "number", "default": 1.0, "step": 0.1, "min": 0},
+    {"key": "regression_count", "label": "回帰データ数", "type": "number", "default": 10, "step": 1, "min": 2},
+    {"key": "r2_threshold", "label": "R²閾値", "type": "number", "default": 0.75, "step": 0.01, "min": 0, "max": 1},
+]
 
 JST = timezone(timedelta(hours=9))
 UTC = timezone.utc
 
-# タイムスタンプ文字列をUTC aware datetimeに変換
+
 def _parse_ts(ts: str) -> datetime:
     dt = datetime.fromisoformat(ts)
     if dt.tzinfo is None:
@@ -21,9 +29,10 @@ def _r2(y: np.ndarray, y_pred: np.ndarray) -> float:
     return float(1 - np.sum((y - y_pred) ** 2) / ss_tot)
 
 
-class TrendJudgement(BaseJudgement):
-    def __init__(self, slope_threshold: float, upper: float, lower: float,
-                 interval_minutes: int = 10, r2_threshold: float = 0.75):
+class LinearJudgement(BaseJudgement):
+    def __init__(self, upper: float, lower: float,
+                 slope_threshold: float = 1.0, interval_minutes: int = 10,
+                 r2_threshold: float = 0.75, **kwargs):
         self.slope_threshold = slope_threshold
         self.upper = upper
         self.lower = lower
@@ -31,16 +40,17 @@ class TrendJudgement(BaseJudgement):
         self.r2_threshold = r2_threshold
 
     def judge(self, data_list: list[MeasurementData]) -> dict:
-        if len(data_list) < 2:
-            return {"is_abnormal": False, "message": "", "predicted_time": None}
+        no_abnormal = {"is_abnormal": False, "message": "", "predicted_steps": None,
+                       "direction": None, "limit_value": None, "predicted_at": None}
 
-        # タイムスタンプで古→新にソート（呼び出し元の順序に依存しない）
+        if len(data_list) < 2:
+            return no_abnormal
+
         try:
             ordered = sorted(data_list, key=lambda d: _parse_ts(d.timestamp))
         except Exception:
             ordered = list(reversed(data_list))
 
-        # 実時刻をx軸に使用（秒単位、最古を0基準）
         try:
             base_ts = _parse_ts(ordered[0].timestamp)
             x = np.array([
@@ -48,7 +58,6 @@ class TrendJudgement(BaseJudgement):
                 for d in ordered
             ])
         except Exception:
-            # タイムスタンプが取得できない場合は均等ステップにフォールバック
             x = np.array(range(len(ordered)), dtype=float) * self.interval_minutes * 60
 
         y = np.array([d.value for d in ordered])
@@ -58,14 +67,13 @@ class TrendJudgement(BaseJudgement):
         y_pred = np.polyval(coeffs, x)
         r2 = _r2(y, y_pred)
 
-        # 傾きを「℃/ステップ」に換算（通知メッセージ用）
         slope_per_step = slope_per_sec * self.interval_minutes * 60
 
         if abs(slope_per_step) <= self.slope_threshold:
-            return {"is_abnormal": False, "message": "", "predicted_steps": None}
+            return no_abnormal
 
         if r2 < self.r2_threshold:
-            return {"is_abnormal": False, "message": "", "predicted_steps": None}
+            return no_abnormal
 
         current_value = y[-1]
         if slope_per_sec > 0:
@@ -77,9 +85,7 @@ class TrendJudgement(BaseJudgement):
             direction = '下降'
             limit = self.lower
 
-        # すでに閾値を超えている場合は到達済みとして扱う
         secs_to_threshold = max(secs_to_threshold, 0)
-
         minutes_to_threshold = secs_to_threshold / 60
         now_jst = datetime.now(JST)
         predicted_dt = now_jst + timedelta(seconds=secs_to_threshold)
@@ -116,3 +122,6 @@ class TrendJudgement(BaseJudgement):
             "predicted_at": predicted_dt.astimezone(UTC),
             "r2": round(r2, 3),
         }
+
+
+JUDGEMENT_CLASS = LinearJudgement

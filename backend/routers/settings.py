@@ -1,21 +1,17 @@
+import json
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import Optional
 from backend.db import get_connection
 from backend.auth.utils import get_current_user, require_admin
-from backend.judgement.factory import create_judgement
+from backend.judgement.factory import create_judgement, get_judgement_types
 
 router = APIRouter()
 
-# 判定タイプ一覧（UIのセレクトボックス用）
-JUDGEMENT_TYPES = [
-    {"value": "linear", "label": "線形回帰"},
-]
-
 
 @router.get("/api/judgement-types")
-def get_judgement_types(user: dict = Depends(get_current_user)):
-    return JUDGEMENT_TYPES
+def list_judgement_types(user: dict = Depends(get_current_user)):
+    return get_judgement_types()
 
 
 @router.get("/api/settings")
@@ -95,7 +91,7 @@ def update_settings(sensor_channel_id: int, body: SettingsUpdate, user: dict = D
             """,
             (body.upper_threshold, body.lower_threshold,
              body.slope_threshold, body.regression_count, body.trend_monitor,
-             body.judgement_type, params,
+             body.judgement_type, json.dumps(params),
              sensor_channel_id)
         )
         conn.commit()

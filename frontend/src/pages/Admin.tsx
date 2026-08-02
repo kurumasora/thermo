@@ -52,7 +52,17 @@ type ChannelConfig = {
   judgement_params: Record<string, number>
 }
 
-type JudgementType = { value: string; label: string }
+type JudgementParamDef = {
+  key: string
+  label: string
+  type: 'number'
+  default: number
+  step?: number
+  min?: number
+  max?: number
+}
+
+type JudgementType = { value: string; label: string; params: JudgementParamDef[] }
 
 type PredictionSummary = {
   total: number
@@ -435,14 +445,20 @@ function ThresholdTab() {
                     <select value={c.judgement_type} onChange={e => update(c.sensor_channel_id, 'judgement_type', e.target.value)}>
                       {judgementTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
-                    {c.judgement_type === 'linear' && <>
-                      <label>傾き閾値 ({c.unit}/10分)</label>
-                      <input type="number" step="0.1" value={c.slope_threshold} onChange={e => update(c.sensor_channel_id, 'slope_threshold', Number(e.target.value))} />
-                      <label>回帰データ数</label>
-                      <input type="number" value={c.regression_count} onChange={e => update(c.sensor_channel_id, 'regression_count', Number(e.target.value))} />
-                      <label>R²閾値</label>
-                      <input type="number" step="0.01" min="0" max="1" value={c.judgement_params?.r2_threshold ?? 0.75} onChange={e => updateParam(c.sensor_channel_id, 'r2_threshold', Number(e.target.value))} />
-                    </>}
+                    {judgementTypes.find(t => t.value === c.judgement_type)?.params.map(p => (
+                      <>
+                        <label key={`label-${p.key}`}>{p.label}</label>
+                        <input
+                          key={`input-${p.key}`}
+                          type="number"
+                          step={p.step}
+                          min={p.min}
+                          max={p.max}
+                          value={c.judgement_params?.[p.key] ?? p.default}
+                          onChange={e => updateParam(c.sensor_channel_id, p.key, Number(e.target.value))}
+                        />
+                      </>
+                    ))}
                   </>}
                 </div>
                 <button onClick={() => handleSave(c)} style={{ marginTop: '0.75rem' }}>更新</button>
