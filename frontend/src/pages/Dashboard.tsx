@@ -15,7 +15,7 @@ type ChannelConfig = {
 
 const POLL_INTERVAL_MS = 10 * 60 * 1000
 const PAGE_SIZE_OPTIONS = [20, 50, 100]
-const LINE_COLORS = ['#f59e0b', '#6366f1', '#10b981', '#ef4444', '#8b5cf6', '#ec4899']
+const LINE_COLORS = ['#3b82f6', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899']
 
 function Dashboard() {
   const [sensors, setSensors] = useState<Sensor[]>([])
@@ -56,6 +56,8 @@ function Dashboard() {
     return lat.value > cfg.upper_threshold || lat.value < cfg.lower_threshold
   }
 
+  const anyDanger = sensors.some(s => s.channels.some(ch => isChannelDanger(ch.id)))
+
   const allTimestamps = [...new Set(measurements.map(m => m.timestamp))].sort((a, b) => b.localeCompare(a))
   const pagedTimestamps = allTimestamps.slice((page - 1) * pageSize, page * pageSize)
   const totalPages = Math.ceil(allTimestamps.length / pageSize)
@@ -69,17 +71,32 @@ function Dashboard() {
   const graphTimestamps = allTimestamps.slice(0, 24).reverse()
 
   return (
-    <div style={{ padding: '1.5rem' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem', marginBottom: '1.5rem' }}>
-        <h1 style={{ margin: 0 }}>ダッシュボード</h1>
-        {lastUpdated && (
-          <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
-            最終更新：{lastUpdated.toLocaleTimeString('ja-JP')}
-          </span>
+    <div style={{ background: '#f1f5f9', minHeight: '100vh', padding: '1.75rem 2rem' }}>
+
+      {/* ヘッダー */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+        <div>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>ダッシュボード</h1>
+          {lastUpdated && (
+            <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: '#94a3b8' }}>
+              最終更新：{lastUpdated.toLocaleTimeString('ja-JP')}
+            </p>
+          )}
+        </div>
+        {anyDanger && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            background: '#fef2f2', border: '1px solid #fca5a5',
+            borderRadius: '8px', padding: '0.5rem 1rem',
+            fontSize: '0.85rem', color: '#dc2626', fontWeight: 600,
+          }}>
+            ⚠ 異常値を検出しています
+          </div>
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+      {/* 現在値カード */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         {sensors.map(sensor =>
           sensor.channels.map(ch => {
             const lat = latest[String(ch.id)]
@@ -88,155 +105,223 @@ function Dashboard() {
             return (
               <ValueCard
                 key={ch.id}
-                label={`${sensor.name} ${ch.name}`}
+                sensorName={sensor.name}
+                channelName={ch.name}
                 value={lat?.value}
                 unit={ch.unit}
                 upper={cfg?.upper_threshold}
                 lower={cfg?.lower_threshold}
                 danger={danger}
+                timestamp={lat?.timestamp}
               />
             )
           })
         )}
       </div>
 
-      {sensors.map(sensor => (
-        <div key={sensor.id} style={{ marginBottom: '2rem' }}>
-          <h2>{sensor.name} 推移（直近24件）</h2>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart
-              data={graphTimestamps.map(ts => {
-                const row: Record<string, string | number | null> = { time: formatTimestamp(ts).slice(5) }
-                for (const ch of sensor.channels) row[ch.name] = measureMap[ts]?.[ch.id] ?? null
-                return row
-              })}
-              margin={{ top: 8, right: 24, left: 0, bottom: 8 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11 }} unit={sensor.channels[0]?.unit} />
-              <Tooltip formatter={(v, name) => [`${v}${sensor.channels.find(c => c.name === name)?.unit ?? ''}`, name]} />
-              <Legend />
-              {sensor.channels.flatMap((ch, i) => {
-                const cfg = getConfig(ch.id)
-                const color = LINE_COLORS[i % LINE_COLORS.length]
-                return [
-                  cfg ? <ReferenceLine key={`u${ch.id}`} y={cfg.upper_threshold} stroke={color} strokeDasharray="4 2" /> : null,
-                  cfg ? <ReferenceLine key={`l${ch.id}`} y={cfg.lower_threshold} stroke={color} strokeDasharray="4 2" /> : null,
-                  <Line key={ch.id} type="monotone" dataKey={ch.name} stroke={color} dot={false} strokeWidth={2} connectNulls />,
-                ]
-              })}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      ))}
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-        <h2 style={{ margin: 0 }}>計測データ一覧</h2>
-        <label style={{ fontSize: '0.9rem', color: '#64748b' }}>
-          表示件数：
-          <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }} style={{ marginLeft: '0.25rem' }}>
-            {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}件</option>)}
-          </select>
-        </label>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <label style={{ fontSize: '0.85rem', color: '#64748b' }}>センサ：</label>
-          <select id="csv-sensor" style={{ fontSize: '0.85rem' }}>
-            <option value="">全て</option>
-            {sensors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <label style={{ fontSize: '0.85rem', color: '#64748b' }}>期間：</label>
-          <input type="date" id="csv-from" style={{ fontSize: '0.85rem' }} />
-          <span style={{ fontSize: '0.85rem', color: '#64748b' }}>〜</span>
-          <input type="date" id="csv-to" style={{ fontSize: '0.85rem' }} />
-          <button
-            onClick={() => {
-              const from = (document.getElementById('csv-from') as HTMLInputElement).value
-              const to = (document.getElementById('csv-to') as HTMLInputElement).value
-              const sensorId = (document.getElementById('csv-sensor') as HTMLSelectElement).value
-              const params = new URLSearchParams()
-              if (sensorId) params.append('sensor_id', sensorId)
-              if (from) params.append('date_from', from)
-              if (to) params.append('date_to', to)
-              const token = localStorage.getItem('token')
-              fetch(`/api/measurements/export?${params.toString()}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              })
-                .then(res => res.blob())
-                .then(blob => {
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url
-                  a.download = 'measurements.csv'
-                  a.click()
-                  URL.revokeObjectURL(url)
-                })
-            }}
-            style={{ fontSize: '0.85rem' }}
-          >
-            CSVダウンロード
-          </button>
-        </div>
+      {/* グラフ */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        {sensors.map(sensor => (
+          <div key={sensor.id} style={cardStyle}>
+            <div style={{ marginBottom: '1rem' }}>
+              <h2 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#0f172a' }}>
+                {sensor.name} <span style={{ fontWeight: 400, color: '#94a3b8', fontSize: '0.8rem' }}>直近24件の推移</span>
+              </h2>
+            </div>
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart
+                data={graphTimestamps.map(ts => {
+                  const row: Record<string, string | number | null> = { time: formatTimestamp(ts).slice(5) }
+                  for (const ch of sensor.channels) row[ch.name] = measureMap[ts]?.[ch.id] ?? null
+                  return row
+                })}
+                margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} interval="preserveStartEnd" />
+                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8' }} unit={sensor.channels[0]?.unit} width={48} />
+                <Tooltip
+                  contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8rem' }}
+                  formatter={(v, name) => [`${v}${sensor.channels.find(c => c.name === name)?.unit ?? ''}`, name]}
+                />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '0.8rem' }} />
+                {sensor.channels.flatMap((ch, i) => {
+                  const cfg = getConfig(ch.id)
+                  const color = LINE_COLORS[i % LINE_COLORS.length]
+                  return [
+                    cfg ? <ReferenceLine key={`u${ch.id}`} y={cfg.upper_threshold} stroke={color} strokeDasharray="4 2" strokeOpacity={0.5} /> : null,
+                    cfg ? <ReferenceLine key={`l${ch.id}`} y={cfg.lower_threshold} stroke={color} strokeDasharray="4 2" strokeOpacity={0.5} /> : null,
+                    <Line key={ch.id} type="monotone" dataKey={ch.name} stroke={color} dot={false} strokeWidth={2} connectNulls />,
+                  ]
+                })}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ))}
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '0.5rem' }}>
-          <thead>
-            <tr>
-              <th style={thStyle}>タイムスタンプ</th>
-              {sensors.map(s => s.channels.map(ch => (
-                <th key={ch.id} style={thStyle}>{s.name} {ch.name}（{ch.unit}）</th>
-              )))}
-            </tr>
-          </thead>
-          <tbody>
-            {pagedTimestamps.map(ts => (
-              <tr key={ts}>
-                <td style={tdStyle}>{formatTimestamp(ts)}</td>
+      {/* 計測データテーブル */}
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#0f172a' }}>計測データ一覧</h2>
+          <label style={{ fontSize: '0.82rem', color: '#64748b', marginLeft: '0.5rem' }}>
+            表示件数：
+            <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}
+              style={{ marginLeft: '0.25rem', fontSize: '0.82rem', borderRadius: '4px', border: '1px solid #e2e8f0', padding: '0.1rem 0.3rem' }}>
+              {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}件</option>)}
+            </select>
+          </label>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <select id="csv-sensor" style={inputStyle}>
+              <option value="">全センサ</option>
+              {sensors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <input type="date" id="csv-from" style={inputStyle} />
+            <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>〜</span>
+            <input type="date" id="csv-to" style={inputStyle} />
+            <button onClick={handleCsvDownload} style={csvBtnStyle}>CSVダウンロード</button>
+          </div>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.83rem' }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>タイムスタンプ</th>
                 {sensors.map(s => s.channels.map(ch => (
-                  <td key={ch.id} style={tdStyle}>
-                    {measureMap[ts]?.[ch.id] != null ? `${measureMap[ts][ch.id]}${ch.unit}` : '—'}
-                  </td>
+                  <th key={ch.id} style={thStyle}>{s.name} {ch.name}（{ch.unit}）</th>
                 )))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '1rem' }}>
-          <button onClick={() => setPage(p => p - 1)} disabled={page === 1}>＜</button>
-          <span style={{ fontSize: '0.9rem' }}>{page} / {totalPages}</span>
-          <button onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>＞</button>
+            </thead>
+            <tbody>
+              {pagedTimestamps.map((ts, i) => (
+                <tr key={ts} style={{ background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                  <td style={tdStyle}>{formatTimestamp(ts)}</td>
+                  {sensors.map(s => s.channels.map(ch => {
+                    const val = measureMap[ts]?.[ch.id]
+                    const cfg = getConfig(ch.id)
+                    const outOfRange = val != null && cfg && (val > cfg.upper_threshold || val < cfg.lower_threshold)
+                    return (
+                      <td key={ch.id} style={{ ...tdStyle, color: outOfRange ? '#ef4444' : undefined, fontWeight: outOfRange ? 600 : undefined }}>
+                        {val != null ? `${val}${ch.unit}` : '—'}
+                      </td>
+                    )
+                  }))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.75rem' }}>
+            <button onClick={() => setPage(p => p - 1)} disabled={page === 1} style={pageBtnStyle}>‹</button>
+            <span style={{ fontSize: '0.82rem', color: '#64748b' }}>{page} / {totalPages}</span>
+            <button onClick={() => setPage(p => p + 1)} disabled={page === totalPages} style={pageBtnStyle}>›</button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
-function ValueCard({ label, value, unit, upper, lower, danger }: {
-  label: string; value: number | undefined; unit: string
-  upper: number | undefined; lower: number | undefined; danger: boolean
+function handleCsvDownload() {
+  const from = (document.getElementById('csv-from') as HTMLInputElement).value
+  const to = (document.getElementById('csv-to') as HTMLInputElement).value
+  const sensorId = (document.getElementById('csv-sensor') as HTMLSelectElement).value
+  const params = new URLSearchParams()
+  if (sensorId) params.append('sensor_id', sensorId)
+  if (from) params.append('date_from', from)
+  if (to) params.append('date_to', to)
+  const token = localStorage.getItem('token')
+  fetch(`/api/measurements/export?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+    .then(res => res.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'measurements.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    })
+}
+
+function ValueCard({ sensorName, channelName, value, unit, upper, lower, danger, timestamp }: {
+  sensorName: string; channelName: string; value: number | undefined; unit: string
+  upper: number | undefined; lower: number | undefined; danger: boolean; timestamp: string | undefined
 }) {
-  const bg = danger ? '#fef2f2' : '#f0fdf4'
-  const color = danger ? '#ef4444' : '#16a34a'
   return (
-    <div style={{ background: bg, border: `2px solid ${color}`, borderRadius: '8px', padding: '1rem 1.5rem', minWidth: '180px', flex: '1 1 180px', maxWidth: '260px' }}>
-      <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.25rem' }}>{label}</div>
-      <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color, lineHeight: 1.1 }}>
-        {value != null ? `${value}${unit}` : '—'}
+    <div style={{
+      background: '#fff',
+      borderRadius: '12px',
+      padding: '1.25rem 1.5rem',
+      boxShadow: danger ? '0 0 0 2px #ef4444' : '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+      display: 'flex', flexDirection: 'column', gap: '0.25rem',
+    }}>
+      <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 500, letterSpacing: '0.02em' }}>
+        {sensorName}
+      </div>
+      <div style={{ fontSize: '0.88rem', color: '#475569', fontWeight: 500 }}>{channelName}</div>
+      <div style={{ fontSize: '2.4rem', fontWeight: 700, color: danger ? '#ef4444' : '#0f172a', lineHeight: 1.1, margin: '0.4rem 0' }}>
+        {value != null ? value : '—'}
+        <span style={{ fontSize: '1rem', fontWeight: 500, color: danger ? '#ef4444' : '#64748b', marginLeft: '0.2rem' }}>{unit}</span>
       </div>
       {upper != null && lower != null && (
-        <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.4rem' }}>
-          範囲：{lower}{unit}〜{upper}{unit}
+        <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+          範囲：{lower}{unit} 〜 {upper}{unit}
+        </div>
+      )}
+      {timestamp && (
+        <div style={{ fontSize: '0.72rem', color: '#cbd5e1', marginTop: '0.2rem' }}>
+          {formatTimestamp(timestamp)}
+        </div>
+      )}
+      {danger && (
+        <div style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: 600, marginTop: '0.2rem' }}>
+          ⚠ 閾値超過
         </div>
       )}
     </div>
   )
 }
 
-const thStyle: React.CSSProperties = { border: '1px solid #ccc', padding: '0.5rem', background: '#f1f5f9', textAlign: 'left' }
-const tdStyle: React.CSSProperties = { border: '1px solid #ccc', padding: '0.5rem' }
+const cardStyle: React.CSSProperties = {
+  background: '#fff',
+  borderRadius: '12px',
+  padding: '1.25rem 1.5rem',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
+}
+
+const inputStyle: React.CSSProperties = {
+  fontSize: '0.82rem', borderRadius: '6px',
+  border: '1px solid #e2e8f0', padding: '0.25rem 0.5rem',
+  color: '#475569',
+}
+
+const csvBtnStyle: React.CSSProperties = {
+  fontSize: '0.82rem', borderRadius: '6px',
+  border: '1px solid #e2e8f0', padding: '0.25rem 0.75rem',
+  background: '#f8fafc', color: '#475569', cursor: 'pointer',
+}
+
+const thStyle: React.CSSProperties = {
+  padding: '0.6rem 0.75rem', background: '#f8fafc',
+  textAlign: 'left', color: '#64748b', fontWeight: 600,
+  borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap',
+}
+
+const tdStyle: React.CSSProperties = {
+  padding: '0.5rem 0.75rem',
+  borderBottom: '1px solid #f1f5f9',
+  color: '#334155', whiteSpace: 'nowrap',
+}
+
+const pageBtnStyle: React.CSSProperties = {
+  padding: '0.2rem 0.6rem', borderRadius: '4px',
+  border: '1px solid #e2e8f0', background: '#fff',
+  cursor: 'pointer', fontSize: '0.9rem', color: '#475569',
+}
 
 export default Dashboard
