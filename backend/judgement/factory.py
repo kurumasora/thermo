@@ -2,24 +2,8 @@ import importlib
 import pkgutil
 import logging
 from backend.judgement.base import BaseJudgement
-from backend.judgement.trend import TrendJudgement
-from backend.judgement.polynomial import PolynomialJudgement
-from backend.judgement.rms import RMSJudgement
 
 logger = logging.getLogger(__name__)
-
-# ビルトイン判定方法
-_BUILTIN_REGISTRY: dict[str, type[BaseJudgement]] = {
-    "linear": TrendJudgement,
-    "polynomial": PolynomialJudgement,
-    "rms": RMSJudgement,
-}
-
-_BUILTIN_LABELS: dict[str, str] = {
-    "linear": "線形回帰",
-    "polynomial": "2次多項式回帰",
-    "rms": "振動RMS",
-}
 
 
 def _load_plugins() -> tuple[dict[str, type[BaseJudgement]], dict[str, str]]:
@@ -58,9 +42,8 @@ def _load_plugins() -> tuple[dict[str, type[BaseJudgement]], dict[str, str]]:
 # モジュールロード時に一度だけプラグインをスキャン
 _plugin_registry, _plugin_labels = _load_plugins()
 
-# ビルトイン + プラグインをマージ（プラグインが同名の場合は上書き）
-_REGISTRY: dict[str, type[BaseJudgement]] = {**_BUILTIN_REGISTRY, **_plugin_registry}
-_LABELS: dict[str, str] = {**_BUILTIN_LABELS, **_plugin_labels}
+_REGISTRY: dict[str, type[BaseJudgement]] = _plugin_registry
+_LABELS: dict[str, str] = _plugin_labels
 
 
 def get_judgement_types() -> list[dict]:
