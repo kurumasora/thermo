@@ -27,8 +27,9 @@ class PolynomialJudgement(BaseJudgement):
     線形回帰では取れない加速的な変化（急激な温度上昇など）を検知する。
     """
 
-    def __init__(self, slope_threshold: float, upper: float, lower: float,
-                 interval_minutes: int = 10, r2_threshold: float = 0.75):
+    def __init__(self, upper: float, lower: float,
+                 slope_threshold: float = 1.0, interval_minutes: int = 10,
+                 r2_threshold: float = 0.75, **kwargs):
         self.slope_threshold = slope_threshold
         self.upper = upper
         self.lower = lower

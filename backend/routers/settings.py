@@ -3,21 +3,14 @@ from pydantic import BaseModel
 from typing import Optional
 from backend.db import get_connection
 from backend.auth.utils import get_current_user, require_admin
-from backend.judgement.factory import create_judgement
+from backend.judgement.factory import create_judgement, get_judgement_types
 
 router = APIRouter()
 
-# 判定タイプ一覧（UIのセレクトボックス用）
-JUDGEMENT_TYPES = [
-    {"value": "linear", "label": "線形回帰"},
-    {"value": "polynomial", "label": "2次多項式回帰"},
-    {"value": "rms", "label": "振動RMS"},
-]
-
 
 @router.get("/api/judgement-types")
-def get_judgement_types(user: dict = Depends(get_current_user)):
-    return JUDGEMENT_TYPES
+def list_judgement_types(user: dict = Depends(get_current_user)):
+    return get_judgement_types()
 
 
 @router.get("/api/settings")

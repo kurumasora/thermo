@@ -10,7 +10,7 @@ class RMSJudgement(BaseJudgement):
     傾向予測は行わず、瞬間的なエネルギー超過を検知する。
     """
 
-    def __init__(self, upper: float, lower: float, rms_window: int = 10):
+    def __init__(self, upper: float, lower: float, rms_window: int = 10, **kwargs):
         self.upper = upper
         self.lower = lower
         self.rms_window = rms_window
