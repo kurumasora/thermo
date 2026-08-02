@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import Optional
@@ -90,7 +91,7 @@ def update_settings(sensor_channel_id: int, body: SettingsUpdate, user: dict = D
             """,
             (body.upper_threshold, body.lower_threshold,
              body.slope_threshold, body.regression_count, body.trend_monitor,
-             body.judgement_type, params,
+             body.judgement_type, json.dumps(params),
              sensor_channel_id)
         )
         conn.commit()
