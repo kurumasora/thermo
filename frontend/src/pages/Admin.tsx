@@ -720,17 +720,6 @@ function NotificationTab() {
   )
 }
 
-function StatCard({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div style={{
-      border: '1px solid #e2e8f0', borderRadius: '8px',
-      padding: '0.75rem 1.25rem', minWidth: '100px', textAlign: 'center',
-    }}>
-      <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.25rem' }}>{label}</div>
-      <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: color ?? '#1e293b' }}>{value}</div>
-    </div>
-  )
-}
 
 const thStyle: React.CSSProperties = {
   border: '1px solid #ccc',
