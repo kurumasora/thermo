@@ -30,7 +30,7 @@ load_dotenv()
 from backend.db import get_connection
 from backend.interfaces import MeasurementData
 from backend.judgement.threshold import ThresholdJudgement
-from backend.judgement.trend import TrendJudgement
+from backend.judgement.factory import create_judgement
 from backend.notification.webhook import TeamsWebhook
 from backend.notification.email import load_email_notifier
 from backend.judgement.prediction import is_prediction_tracking_enabled, save_prediction
@@ -56,8 +56,9 @@ def list_sensors(cur):
 
 def get_channel_info(cur, sensor_key: str, channel_no: int):
     cur.execute("""
-        SELECT sc.id, cc.upper_threshold, cc.lower_threshold, cc.slope_threshold,
-               cc.regression_count, cc.trend_monitor, sc.name, s.name, sc.unit,
+        SELECT sc.id, cc.upper_threshold, cc.lower_threshold,
+               cc.trend_monitor, cc.judgement_type, cc.judgement_params,
+               sc.name, s.name, sc.unit,
                s.webhook_url, s.webhook_enabled, s.email_enabled, s.id
         FROM sensor_channels sc
         JOIN sensors s ON s.id = sc.sensor_id
@@ -118,10 +119,11 @@ def run_threshold_check(cur, conn, channel_id: int, data: MeasurementData,
 
 
 def run_trend_check(cur, conn, channel_id: int, channel_no: int, data: MeasurementData,
-                    upper: float, lower: float, slope_threshold: float,
-                    regression_count: int, webhook_url: str,
-                    webhook_enabled: bool, email_enabled: bool,
+                    upper: float, lower: float, judgement_type: str, judgement_params: dict,
+                    webhook_url: str, webhook_enabled: bool, email_enabled: bool,
                     email_recipients: list, email_notifier):
+    params = judgement_params or {}
+    regression_count = int(params.get('regression_count', 50))
     cur.execute(
         "SELECT timestamp, value FROM measurements WHERE sensor_channel_id = %s ORDER BY timestamp DESC LIMIT %s",
         (channel_id, regression_count)
@@ -131,8 +133,8 @@ def run_trend_check(cur, conn, channel_id: int, channel_no: int, data: Measureme
         MeasurementData(channel=channel_no, value=row[1], unit=data.unit, timestamp=str(row[0]))
         for row in rows
     ]
-    trend = TrendJudgement(slope_threshold=slope_threshold, upper=upper, lower=lower, interval_minutes=10)
-    result = trend.judge(trend_data)
+    judgement = create_judgement(judgement_type or 'linear', params, upper, lower)
+    result = judgement.judge(trend_data)
     if result["is_abnormal"]:
         print(f"  [傾向異常] {result['message']}")
         cur.execute(
@@ -178,7 +180,7 @@ def main():
         conn.close()
         return
 
-    channel_id, upper, lower, slope_threshold, regression_count, trend_monitor, ch_name, sensor_name, unit, webhook_url, webhook_enabled, email_enabled, sensor_id = info
+    channel_id, upper, lower, trend_monitor, judgement_type, judgement_params, ch_name, sensor_name, unit, webhook_url, webhook_enabled, email_enabled, sensor_id = info
     now = datetime.now()
 
     # メール通知先・SMTP設定を取得
@@ -223,7 +225,7 @@ def main():
             insert_measurement(cur, channel_id, v, unit, ts)
         conn.commit()
         last = MeasurementData(channel=channel_no, value=trend_values[-1], unit=unit, timestamp=now.strftime('%Y-%m-%d %H:%M:%S'))
-        run_trend_check(cur, conn, channel_id, channel_no, last, upper, lower, slope_threshold, regression_count,
+        run_trend_check(cur, conn, channel_id, channel_no, last, upper, lower, judgement_type, judgement_params,
                         webhook_url, webhook_enabled, email_enabled, email_recipients, email_notifier)
 
     elif mode == 'normal':

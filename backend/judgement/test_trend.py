@@ -1,7 +1,7 @@
 from backend.interfaces import MeasurementData
-from backend.judgement.trend import TrendJudgement
+from backend.judgement.factory import create_judgement
 
-judgement = TrendJudgement(slope_threshold = 0.4, upper = 30.0, lower = 20.0)
+judgement = create_judgement('linear', {'slope_threshold': 0.4}, upper=30.0, lower=20.0)
 
 # 上昇傾向のテスト
 data_rising = [
