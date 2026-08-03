@@ -200,6 +200,7 @@ function Dashboard() {
           sensor={sensor}
           graphMeasurements={graphMeasurements}
           getConfig={getConfig}
+          scopeHours={calMode ? 168 : SCOPES[scopeIdx].hours}
         />
       ))}
 

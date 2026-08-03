@@ -9,21 +9,34 @@ const FILL_COLORS = [
   'rgba(239,68,68,0.12)', 'rgba(139,92,246,0.12)', 'rgba(236,72,153,0.12)',
 ]
 
-function fmtTick(ts: string): string {
-  const d = new Date(ts)
-  const h = d.getHours()
-  const m = d.getMinutes().toString().padStart(2, '0')
-  const h12 = h % 12 || 12
-  return `${h12}:${m} ${h < 12 ? 'am' : 'pm'}`
+function fmtTick(ts: string, hours: number): string {
+  const d = new Date(ts.replace(' ', 'T'))
+  const mo = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
+  if (hours <= 24) return `${h}:${m}`
+  if (hours <= 72) return `${mo}/${day} ${h}:${m}`
+  return `${mo}/${day}`
+}
+
+function fmtTooltip(ts: string): string {
+  const d = new Date(ts.replace(' ', 'T'))
+  const mo = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
+  return `${mo}/${day} ${h}:${m}`
 }
 
 interface Props {
   sensor: Sensor
   graphMeasurements: Measurement[]
   getConfig: (channelId: number) => ChannelConfig | undefined
+  scopeHours: number
 }
 
-export function SensorGraph({ sensor, graphMeasurements, getConfig }: Props) {
+export function SensorGraph({ sensor, graphMeasurements, getConfig, scopeHours }: Props) {
   const sensorChannelIds = new Set(sensor.channels.map(ch => ch.id))
   const sensorTimestamps = [...new Set(
     graphMeasurements
@@ -73,7 +86,7 @@ export function SensorGraph({ sensor, graphMeasurements, getConfig }: Props) {
               <CartesianGrid strokeDasharray="2 4" stroke="#e8edf3" />
               <XAxis
                 dataKey="ts"
-                tickFormatter={fmtTick}
+                tickFormatter={(ts) => fmtTick(String(ts), scopeHours)}
                 tick={{ fontSize: 9, fill: '#94a3b8', angle: -45, textAnchor: 'end' }}
                 interval={interval}
                 height={50}
@@ -91,7 +104,7 @@ export function SensorGraph({ sensor, graphMeasurements, getConfig }: Props) {
               ))}
               <Tooltip
                 contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.78rem' }}
-                labelFormatter={(label: unknown) => fmtTick(String(label))}
+                labelFormatter={(label: unknown) => fmtTooltip(String(label))}
                 formatter={(v, name) => {
                   const ch = sensor.channels.find(c => c.name === name)
                   return [typeof v === 'number' ? `${v.toFixed(1)}${ch?.unit ?? ''}` : '—', name as string]
