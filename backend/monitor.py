@@ -64,26 +64,21 @@ def main():
         """)
         active_sensors = cur.fetchall()
 
-        # 全センサのデータを先取りし、ondotoriのタイムスタンプを基準として共有する
+        # cron実行時刻を全センサ共通のタイムスタンプとして使用
+        collection_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
         sensor_data_map: dict = {}
-        reference_timestamp: str | None = None
         for sensor_id, sensor_key, *_ in active_sensors:
             if sensor_key not in SENSOR_MAP:
                 continue
             try:
                 device = SENSOR_MAP[sensor_key]()
                 data_list = device.get_data()
+                for d in data_list:
+                    d.timestamp = collection_timestamp
                 sensor_data_map[sensor_key] = data_list
-                if sensor_key == 'ondotori_1' and data_list:
-                    reference_timestamp = data_list[0].timestamp
             except Exception as e:
                 logger.error(f"{sensor_key} データ取得エラー: {e}", exc_info=True)
-
-        if reference_timestamp:
-            for sensor_key, data_list in sensor_data_map.items():
-                if sensor_key != 'ondotori_1':
-                    for d in data_list:
-                        d.timestamp = reference_timestamp
 
         for sensor_id, sensor_key, sensor_name, sensor_webhook_url, webhook_enabled, email_enabled in active_sensors:
             if sensor_key not in SENSOR_MAP:
