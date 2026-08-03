@@ -121,17 +121,6 @@ def main():
             )
             channel_map = {row[0]: row[1] for row in cur.fetchall()}
 
-            # 重複チェック（最初のチャンネルのタイムスタンプで判定）
-            first_channel_id = channel_map.get(data_list[0].channel)
-            if first_channel_id:
-                cur.execute(
-                    "SELECT id FROM measurements WHERE timestamp = %s AND sensor_channel_id = %s",
-                    (data_list[0].timestamp, first_channel_id)
-                )
-                if cur.fetchone() is not None:
-                    logger.info(f"{sensor_key}: 重複スキップ ({data_list[0].timestamp})")
-                    continue
-
             # 計測データを保存
             for data in data_list:
                 channel_id = channel_map.get(data.channel)
