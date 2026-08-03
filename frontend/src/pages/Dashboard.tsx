@@ -30,6 +30,13 @@ const SCOPES = [
   { label: '30日',   hours: 720 },
 ]
 
+// DB のタイムスタンプはローカル時刻（JST, タイムゾーン情報なし）で保存されているため
+// API に渡す日時もローカル時刻文字列に合わせる
+function toLocalStr(date: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${p(date.getMonth()+1)}-${p(date.getDate())} ${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}`
+}
+
 function fmtTick(ts: string): string {
   const d = new Date(ts)
   const h = d.getHours()
@@ -91,15 +98,16 @@ function Dashboard() {
 
   // グラフデータをスコープ・オフセット変化時に取得
   useEffect(() => {
-    const endDate   = new Date(Date.now() - offset * scopeMs)
-    const startDate = new Date(endDate.getTime() - scopeMs)
+    const sMs       = SCOPES[scopeIdx].hours * 3600_000
+    const endDate   = new Date(Date.now() - offset * sMs)
+    const startDate = new Date(endDate.getTime() - sMs)
     client.get('/api/measurements', {
       params: {
-        date_from: startDate.toISOString(),
-        date_to:   endDate.toISOString(),
+        date_from: toLocalStr(startDate),
+        date_to:   toLocalStr(endDate),
       },
     }).then(res => setGraphMeasurements(res.data))
-  }, [scopeIdx, offset, refreshTick, scopeMs])
+  }, [scopeIdx, offset, refreshTick])
 
   // 最新表示中のみ10分ごとにグラフも自動更新
   useEffect(() => {
