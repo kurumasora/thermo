@@ -17,7 +17,7 @@ class OndotoriDevice(IMeasurementDevice):
             "X-HTTP-Method-Override": "GET"
         }
     def get_data(self) -> list[MeasurementData]:
-        res = requests.post(self.url, headers=self.headers, data=json.dumps(self.payload))
+        res = requests.post(self.url, headers=self.headers, data=json.dumps(self.payload), timeout=30)
         if res.status_code != 200:
             raise Exception(f"API error: {res.status_code}")
         device = res.json()["devices"][0]

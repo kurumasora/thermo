@@ -156,7 +156,13 @@ def delete_sensor(sensor_id: int, user: dict = Depends(require_admin)):
         if row is None:
             raise HTTPException(status_code=404, detail="センサが見つかりません")
 
-        # 関連データを削除（channel_config → sensor_channels → sensors の順）
+        # 関連データを削除（alert_history は CASCADE なしのため手動削除が必要）
+        cur.execute("""
+            DELETE FROM alert_history
+            WHERE sensor_channel_id IN (
+                SELECT id FROM sensor_channels WHERE sensor_id = %s
+            )
+        """, (sensor_id,))
         cur.execute("""
             DELETE FROM channel_config
             WHERE sensor_channel_id IN (

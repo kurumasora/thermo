@@ -32,6 +32,6 @@ class TeamsWebhook:
                 }
             ]
         }
-        res = requests.post(self.url, headers={"Content-Type": "application/json"}, data=json.dumps(payload))
+        res = requests.post(self.url, headers={"Content-Type": "application/json"}, data=json.dumps(payload), timeout=15)
         if res.status_code not in [200, 202]:
             raise Exception(f"Teams通知エラー: {res.status_code}")
