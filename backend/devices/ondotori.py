@@ -21,6 +21,8 @@ class OndotoriDevice(IMeasurementDevice):
         if res.status_code != 200:
             raise Exception(f"API error: {res.status_code}")
         device = res.json()["devices"][0]
+        if not device.get("rssi"):
+            raise Exception(f"デバイスがオフライン (rssi 空, serial={device.get('serial')})")
         timestamp = datetime.fromtimestamp(int(device["unixtime"])).strftime('%Y-%m-%d %H:%M:%S')
         return [
             MeasurementData(channel=1, value=float(device["channel"][0]["value"]),unit="℃", timestamp=timestamp),
