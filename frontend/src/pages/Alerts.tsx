@@ -98,8 +98,7 @@ function Alerts() {
                   </td>
                   <td style={tdStyle}>
                     <span style={{
-                      padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.78rem', fontWeight: 600,
-                      background: a.alert_type === 'threshold' ? '#fef2f2' : '#fffbeb',
+                      fontSize: '0.78rem', fontWeight: 600,
                       color: a.alert_type === 'threshold' ? '#dc2626' : '#b45309',
                     }}>
                       {a.alert_type === 'threshold' ? '閾値超過' : '傾向異常'}
