@@ -44,14 +44,20 @@ def update_smtp_config(body: SmtpConfigUpdate, user: dict = Depends(require_admi
         cur = conn.cursor()
         if body.password is not None:
             cur.execute("""
-                UPDATE smtp_config SET host=%s, port=%s, username=%s, password=%s, from_address=%s
-                WHERE id = 1
-            """, (body.host, body.port, body.username, body.password, body.from_address))
+                INSERT INTO smtp_config (id, host, port, username, password, from_address)
+                VALUES (1, %s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE
+                SET host=%s, port=%s, username=%s, password=%s, from_address=%s
+            """, (body.host, body.port, body.username, body.password, body.from_address,
+                  body.host, body.port, body.username, body.password, body.from_address))
         else:
             cur.execute("""
-                UPDATE smtp_config SET host=%s, port=%s, username=%s, from_address=%s
-                WHERE id = 1
-            """, (body.host, body.port, body.username, body.from_address))
+                INSERT INTO smtp_config (id, host, port, username, from_address)
+                VALUES (1, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE
+                SET host=%s, port=%s, username=%s, from_address=%s
+            """, (body.host, body.port, body.username, body.from_address,
+                  body.host, body.port, body.username, body.from_address))
         conn.commit()
         return {"status": "ok"}
     finally:
