@@ -201,6 +201,8 @@ function Dashboard() {
           graphMeasurements={graphMeasurements}
           getConfig={getConfig}
           scopeHours={calMode ? 168 : SCOPES[scopeIdx].hours}
+          startMs={startMs}
+          endMs={endMs}
         />
       ))}
 

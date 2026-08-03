@@ -9,8 +9,12 @@ const FILL_COLORS = [
   'rgba(239,68,68,0.12)', 'rgba(139,92,246,0.12)', 'rgba(236,72,153,0.12)',
 ]
 
-function fmtTick(ts: string, hours: number): string {
-  const d = new Date(ts.replace(' ', 'T'))
+function tsToMs(ts: string): number {
+  return new Date(ts.replace(' ', 'T')).getTime()
+}
+
+function fmtMs(ms: number, hours: number): string {
+  const d = new Date(ms)
   const mo = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   const h = String(d.getHours()).padStart(2, '0')
@@ -20,8 +24,8 @@ function fmtTick(ts: string, hours: number): string {
   return `${mo}/${day}`
 }
 
-function fmtTooltip(ts: string): string {
-  const d = new Date(ts.replace(' ', 'T'))
+function fmtTooltipMs(ms: number): string {
+  const d = new Date(ms)
   const mo = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   const h = String(d.getHours()).padStart(2, '0')
@@ -34,9 +38,11 @@ interface Props {
   graphMeasurements: Measurement[]
   getConfig: (channelId: number) => ChannelConfig | undefined
   scopeHours: number
+  startMs: number
+  endMs: number
 }
 
-export function SensorGraph({ sensor, graphMeasurements, getConfig, scopeHours }: Props) {
+export function SensorGraph({ sensor, graphMeasurements, getConfig, scopeHours, startMs, endMs }: Props) {
   const sensorChannelIds = new Set(sensor.channels.map(ch => ch.id))
   const sensorTimestamps = [...new Set(
     graphMeasurements
@@ -52,15 +58,15 @@ export function SensorGraph({ sensor, graphMeasurements, getConfig, scopeHours }
   }
 
   const chartData = sensorTimestamps.map(ts => {
-    const pt: Record<string, string | number | null> = { ts }
+    const pt: Record<string, number | null> = { ts_ms: tsToMs(ts) }
     for (const ch of sensor.channels) pt[ch.name] = chValueMap[ch.id]?.[ts] ?? null
     return pt
   })
 
-  const interval = sensorTimestamps.length > 16 ? Math.floor(sensorTimestamps.length / 12) : 0
-  const units    = [...new Set(sensor.channels.map(ch => ch.unit))]
-  const axisId   = (unit: string) => units.indexOf(unit) === 0 ? 'L' : 'R'
-  const biAxial  = units.length > 1
+  const tickCount = scopeHours <= 24 ? 12 : scopeHours <= 72 ? 9 : 8
+  const units   = [...new Set(sensor.channels.map(ch => ch.unit))]
+  const axisId  = (unit: string) => units.indexOf(unit) === 0 ? 'L' : 'R'
+  const biAxial = units.length > 1
 
   const stats = sensor.channels.map((ch, i) => {
     const vals = chartData.map(p => p[ch.name]).filter((v): v is number => typeof v === 'number')
@@ -85,10 +91,13 @@ export function SensorGraph({ sensor, graphMeasurements, getConfig, scopeHours }
             <AreaChart data={chartData} margin={{ top: 4, right: biAxial ? 8 : 4, left: 0, bottom: 46 }}>
               <CartesianGrid strokeDasharray="2 4" stroke="#e8edf3" />
               <XAxis
-                dataKey="ts"
-                tickFormatter={(ts) => fmtTick(String(ts), scopeHours)}
+                dataKey="ts_ms"
+                type="number"
+                scale="time"
+                domain={[startMs, endMs]}
+                tickCount={tickCount}
+                tickFormatter={(ms) => fmtMs(ms, scopeHours)}
                 tick={{ fontSize: 9, fill: '#94a3b8', angle: -45, textAnchor: 'end' }}
-                interval={interval}
                 height={50}
               />
               {units.map((unit, i) => (
@@ -104,7 +113,7 @@ export function SensorGraph({ sensor, graphMeasurements, getConfig, scopeHours }
               ))}
               <Tooltip
                 contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.78rem' }}
-                labelFormatter={(label: unknown) => fmtTooltip(String(label))}
+                labelFormatter={(ms: unknown) => fmtTooltipMs(Number(ms))}
                 formatter={(v, name) => {
                   const ch = sensor.channels.find(c => c.name === name)
                   return [typeof v === 'number' ? `${v.toFixed(1)}${ch?.unit ?? ''}` : '—', name as string]
