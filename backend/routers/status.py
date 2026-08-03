@@ -28,7 +28,7 @@ def get_measurements(
             conditions.append("m.timestamp <= %s")
             params.append(date_to)
         where = " AND ".join(conditions)
-        limit_clause = "" if (date_from or date_to) else "LIMIT 500"
+        limit_clause = "LIMIT 500" if not (date_from or date_to) else ""
         cur.execute(
             f"""
             SELECT m.id, m.timestamp, m.sensor_channel_id, m.value
@@ -36,7 +36,7 @@ def get_measurements(
             JOIN sensor_channels sc ON sc.id = m.sensor_channel_id
             JOIN sensors s ON s.id = sc.sensor_id
             WHERE {where}
-            ORDER BY m.timestamp ASC
+            ORDER BY m.timestamp DESC
             {limit_clause}
             """,
             params,
