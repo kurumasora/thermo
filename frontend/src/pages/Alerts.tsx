@@ -81,6 +81,11 @@ function Alerts() {
             </select>
           </label>
           <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>{filtered.length}件</span>
+          {alerts.length >= 200 && (
+            <span style={{ fontSize: '0.78rem', color: '#f59e0b', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '4px', padding: '0.15rem 0.5rem' }}>
+              最新200件を表示中。それ以前のデータはCSVエクスポートで確認できます
+            </span>
+          )}
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.82rem', color: '#64748b' }}>期間：</span>
