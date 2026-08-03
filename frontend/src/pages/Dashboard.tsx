@@ -25,6 +25,9 @@ function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  const [csvSensorId, setCsvSensorId] = useState('')
+  const [csvFrom, setCsvFrom] = useState('')
+  const [csvTo, setCsvTo] = useState('')
 
   const fetchData = useCallback(() => {
     Promise.all([
@@ -48,6 +51,26 @@ function Dashboard() {
   }, [fetchData])
 
   const getConfig = (channelId: number) => configs.find(c => c.sensor_channel_id === channelId)
+
+  const handleCsvDownload = () => {
+    const params = new URLSearchParams()
+    if (csvSensorId) params.append('sensor_id', csvSensorId)
+    if (csvFrom) params.append('date_from', csvFrom)
+    if (csvTo) params.append('date_to', csvTo)
+    const token = localStorage.getItem('token')
+    fetch(`/api/measurements/export?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'measurements.csv'
+        a.click()
+        URL.revokeObjectURL(url)
+      })
+  }
 
   const isChannelDanger = (channelId: number): boolean => {
     const cfg = getConfig(channelId)
@@ -96,7 +119,7 @@ function Dashboard() {
       </div>
 
       {/* センサごとに現在値カード＋グラフをまとめたカラムレイアウト */}
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${sensors.length || 1}, 1fr)`, gap: '1rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         {sensors.map(sensor => (
           <div key={sensor.id} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
@@ -129,34 +152,53 @@ function Dashboard() {
                   {sensor.name} <span style={{ fontWeight: 400, color: '#94a3b8', fontSize: '0.8rem' }}>直近24件の推移</span>
                 </h2>
               </div>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart
-                  data={graphTimestamps.map(ts => {
-                    const row: Record<string, string | number | null> = { time: formatTimestamp(ts).slice(5) }
-                    for (const ch of sensor.channels) row[ch.name] = measureMap[ts]?.[ch.id] ?? null
-                    return row
-                  })}
-                  margin={{ top: 4, right: 16, left: 0, bottom: 4 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} interval="preserveStartEnd" />
-                  <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8' }} unit={sensor.channels[0]?.unit} width={48} />
-                  <Tooltip
-                    contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8rem' }}
-                    formatter={(v, name) => [`${v}${sensor.channels.find(c => c.name === name)?.unit ?? ''}`, name]}
-                  />
-                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '0.8rem' }} />
-                  {sensor.channels.flatMap((ch, i) => {
-                    const cfg = getConfig(ch.id)
-                    const color = LINE_COLORS[i % LINE_COLORS.length]
-                    return [
-                      cfg ? <ReferenceLine key={`u${ch.id}`} y={cfg.upper_threshold} stroke={color} strokeDasharray="4 2" strokeOpacity={0.5} /> : null,
-                      cfg ? <ReferenceLine key={`l${ch.id}`} y={cfg.lower_threshold} stroke={color} strokeDasharray="4 2" strokeOpacity={0.5} /> : null,
-                      <Line key={ch.id} type="monotone" dataKey={ch.name} stroke={color} dot={false} strokeWidth={2} connectNulls />,
-                    ]
-                  })}
-                </LineChart>
-              </ResponsiveContainer>
+              {(() => {
+                // 単位ごとにY軸IDを割り当て（異なる単位が混在する場合は左右2軸）
+                const units = [...new Set(sensor.channels.map(ch => ch.unit))]
+                const unitToAxisId = Object.fromEntries(units.map((u, i) => [u, i === 0 ? 'left' : 'right']))
+                const hasMultiAxis = units.length > 1
+                return (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart
+                      data={graphTimestamps.map(ts => {
+                        const row: Record<string, string | number | null> = { time: formatTimestamp(ts).slice(5) }
+                        for (const ch of sensor.channels) row[ch.name] = measureMap[ts]?.[ch.id] ?? null
+                        return row
+                      })}
+                      margin={{ top: 4, right: hasMultiAxis ? 48 : 16, left: 0, bottom: 4 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#94a3b8' }} interval="preserveStartEnd" />
+                      {units.map((unit, i) => (
+                        <YAxis
+                          key={unit}
+                          yAxisId={unitToAxisId[unit]}
+                          orientation={i === 0 ? 'left' : 'right'}
+                          domain={['auto', 'auto']}
+                          tick={{ fontSize: 10, fill: '#94a3b8' }}
+                          unit={unit}
+                          width={48}
+                        />
+                      ))}
+                      <Tooltip
+                        contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8rem' }}
+                        formatter={(v, name) => [`${v}${sensor.channels.find(c => c.name === name)?.unit ?? ''}`, name]}
+                      />
+                      <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '0.8rem' }} />
+                      {sensor.channels.flatMap((ch, i) => {
+                        const cfg = getConfig(ch.id)
+                        const color = LINE_COLORS[i % LINE_COLORS.length]
+                        const axisId = unitToAxisId[ch.unit]
+                        return [
+                          cfg ? <ReferenceLine key={`u${ch.id}`} yAxisId={axisId} y={cfg.upper_threshold} stroke={color} strokeDasharray="4 2" strokeOpacity={0.5} /> : null,
+                          cfg ? <ReferenceLine key={`l${ch.id}`} yAxisId={axisId} y={cfg.lower_threshold} stroke={color} strokeDasharray="4 2" strokeOpacity={0.5} /> : null,
+                          <Line key={ch.id} yAxisId={axisId} type="monotone" dataKey={ch.name} stroke={color} dot={false} strokeWidth={2} connectNulls />,
+                        ]
+                      })}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )
+              })()}
             </div>
 
           </div>
@@ -175,13 +217,13 @@ function Dashboard() {
             </select>
           </label>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <select id="csv-sensor" style={inputStyle}>
+            <select value={csvSensorId} onChange={e => setCsvSensorId(e.target.value)} style={inputStyle}>
               <option value="">全センサ</option>
               {sensors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            <input type="date" id="csv-from" style={inputStyle} />
+            <input type="date" value={csvFrom} onChange={e => setCsvFrom(e.target.value)} style={inputStyle} />
             <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>〜</span>
-            <input type="date" id="csv-to" style={inputStyle} />
+            <input type="date" value={csvTo} onChange={e => setCsvTo(e.target.value)} style={inputStyle} />
             <button onClick={handleCsvDownload} style={csvBtnStyle}>CSVダウンロード</button>
           </div>
         </div>
@@ -228,28 +270,6 @@ function Dashboard() {
   )
 }
 
-function handleCsvDownload() {
-  const from = (document.getElementById('csv-from') as HTMLInputElement).value
-  const to = (document.getElementById('csv-to') as HTMLInputElement).value
-  const sensorId = (document.getElementById('csv-sensor') as HTMLSelectElement).value
-  const params = new URLSearchParams()
-  if (sensorId) params.append('sensor_id', sensorId)
-  if (from) params.append('date_from', from)
-  if (to) params.append('date_to', to)
-  const token = localStorage.getItem('token')
-  fetch(`/api/measurements/export?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-    .then(res => res.blob())
-    .then(blob => {
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'measurements.csv'
-      a.click()
-      URL.revokeObjectURL(url)
-    })
-}
 
 function ValueCard({ sensorName, channelName, value, unit, upper, lower, danger, timestamp }: {
   sensorName: string; channelName: string; value: number | undefined; unit: string

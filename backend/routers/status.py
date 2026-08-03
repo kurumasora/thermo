@@ -11,7 +11,7 @@ router = APIRouter()
 
 @router.get("/api/measurements")
 def get_measurements(user: dict = Depends(get_current_user)):
-    """全アクティブセンサの直近100件（チャンネルごと）を返す"""
+    """全アクティブセンサの直近500件（全チャンネル合計）を返す"""
     conn = get_connection()
     try:
         cur = conn.cursor()
