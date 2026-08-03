@@ -48,20 +48,20 @@ export function ThresholdTab() {
       {Object.values(grouped).map(({ sensor_name, sensor_key, channels }) => (
         <div key={sensor_key} style={{ marginBottom: '1.5rem' }}>
           <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#475569', marginBottom: '0.75rem' }}>{sensor_name}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem', alignItems: 'start' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'start' }}>
             {channels.map(c => (
-              <div key={c.sensor_channel_id} style={{ ...cardStyle }}>
+              <div key={c.sensor_channel_id} style={{ ...cardStyle, display: 'inline-block' }}>
                 <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#0f172a', marginBottom: '1rem' }}>{c.channel_name}</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.5rem 0.75rem', alignItems: 'center' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', gap: '0.5rem 0.75rem', alignItems: 'center' }}>
                   <label style={thLabelStyle}>上限閾値 ({c.unit})</label>
-                  <input type="number" value={c.upper_threshold} onChange={e => update(c.sensor_channel_id, 'upper_threshold', Number(e.target.value))} style={inputStyle} />
+                  <input type="number" value={c.upper_threshold} onChange={e => update(c.sensor_channel_id, 'upper_threshold', Number(e.target.value))} style={{ ...inputStyle, width: '90px' }} />
                   <label style={thLabelStyle}>下限閾値 ({c.unit})</label>
-                  <input type="number" value={c.lower_threshold} onChange={e => update(c.sensor_channel_id, 'lower_threshold', Number(e.target.value))} style={inputStyle} />
+                  <input type="number" value={c.lower_threshold} onChange={e => update(c.sensor_channel_id, 'lower_threshold', Number(e.target.value))} style={{ ...inputStyle, width: '90px' }} />
                   <label style={thLabelStyle}>傾向監視</label>
                   <input type="checkbox" checked={c.trend_monitor} onChange={e => update(c.sensor_channel_id, 'trend_monitor', e.target.checked)} />
                   {c.trend_monitor && <>
                     <label style={thLabelStyle}>判定方法</label>
-                    <select value={c.judgement_type} onChange={e => update(c.sensor_channel_id, 'judgement_type', e.target.value)} style={inputStyle}>
+                    <select value={c.judgement_type} onChange={e => update(c.sensor_channel_id, 'judgement_type', e.target.value)} style={{ ...inputStyle, width: '90px' }}>
                       {judgementTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                     </select>
                     {judgementTypes.find(t => t.value === c.judgement_type)?.params.map(p => (
@@ -70,7 +70,7 @@ export function ThresholdTab() {
                         <input key={`input-${p.key}`} type="number" step={p.step} min={p.min} max={p.max}
                           value={c.judgement_params?.[p.key] ?? p.default}
                           onChange={e => updateParam(c.sensor_channel_id, p.key, Number(e.target.value))}
-                          style={inputStyle} />
+                          style={{ ...inputStyle, width: '90px' }} />
                       </>
                     ))}
                   </>}
