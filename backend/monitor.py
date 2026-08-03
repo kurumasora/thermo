@@ -50,6 +50,29 @@ def main():
         """)
         active_sensors = cur.fetchall()
 
+        # 全センサのデータを先取りし、ondotoriのタイムスタンプを基準として共有する
+        sensor_data_map: dict = {}
+        reference_timestamp: str | None = None
+        for sensor_id, sensor_key, *_ in active_sensors:
+            if sensor_key not in SENSOR_MAP:
+                continue
+            try:
+                device = SENSOR_MAP[sensor_key]()
+                data_list = device.get_data()
+                sensor_data_map[sensor_key] = data_list
+                # ondotoriのタイムスタンプを基準とする
+                if sensor_key == 'ondotori_1' and data_list:
+                    reference_timestamp = data_list[0].timestamp
+            except Exception as e:
+                logger.error(f"{sensor_key} データ取得エラー: {e}", exc_info=True)
+
+        # 基準タイムスタンプをondotori以外のセンサに適用
+        if reference_timestamp:
+            for sensor_key, data_list in sensor_data_map.items():
+                if sensor_key != 'ondotori_1':
+                    for d in data_list:
+                        d.timestamp = reference_timestamp
+
         for sensor_id, sensor_key, sensor_name, sensor_webhook_url, webhook_enabled, email_enabled in active_sensors:
             if sensor_key not in SENSOR_MAP:
                 logger.warning(f"未登録センサ: {sensor_key}")
@@ -62,13 +85,7 @@ def main():
             )
             email_recipients = [r[0] for r in cur.fetchall()]
 
-            try:
-                device = SENSOR_MAP[sensor_key]()
-                data_list = device.get_data()
-            except Exception as e:
-                logger.error(f"{sensor_key} データ取得エラー: {e}", exc_info=True)
-                continue
-
+            data_list = sensor_data_map.get(sensor_key)
             if not data_list:
                 continue
 

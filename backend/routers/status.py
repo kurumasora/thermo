@@ -10,21 +10,36 @@ router = APIRouter()
 
 
 @router.get("/api/measurements")
-def get_measurements(user: dict = Depends(get_current_user)):
-    """全アクティブセンサの直近500件（全チャンネル合計）を返す"""
+def get_measurements(
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    user: dict = Depends(get_current_user),
+):
+    """指定期間のアクティブセンサ計測データを返す。未指定時は直近500件"""
     conn = get_connection()
     try:
         cur = conn.cursor()
+        conditions = ["s.active = TRUE"]
+        params: list = []
+        if date_from:
+            conditions.append("m.timestamp >= %s")
+            params.append(date_from)
+        if date_to:
+            conditions.append("m.timestamp <= %s")
+            params.append(date_to)
+        where = " AND ".join(conditions)
+        limit_clause = "" if (date_from or date_to) else "LIMIT 500"
         cur.execute(
-            """
+            f"""
             SELECT m.id, m.timestamp, m.sensor_channel_id, m.value
             FROM measurements m
             JOIN sensor_channels sc ON sc.id = m.sensor_channel_id
             JOIN sensors s ON s.id = sc.sensor_id
-            WHERE s.active = TRUE
-            ORDER BY m.timestamp DESC
-            LIMIT 500
-            """
+            WHERE {where}
+            ORDER BY m.timestamp ASC
+            {limit_clause}
+            """,
+            params,
         )
         rows = cur.fetchall()
         return [
