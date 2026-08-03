@@ -12,14 +12,16 @@ class LoginRequest(BaseModel):
 @router.post("/api/auth/login")
 def login(body: LoginRequest):
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT id, username, hashed_password, role FROM users WHERE username = %s",
-        (body.username,)
-    )
-    user = cur.fetchone()
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, username, hashed_password, role FROM users WHERE username = %s",
+            (body.username,)
+        )
+        user = cur.fetchone()
+        cur.close()
+    finally:
+        conn.close()
 
     if user is None or not verify_password(body.password, user[2]):
         raise HTTPException(status_code=401, detail="ユーザ名またはパスワードが違います")
