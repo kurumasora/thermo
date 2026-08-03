@@ -121,21 +121,7 @@ function Dashboard() {
   const anyDanger = sensors.some(s => s.channels.some(ch => isChannelDanger(ch.id)))
 
   // ─── グラフ用データ ────────────────────────────────────────────────────────
-  const graphMeasureMap = useMemo(() => {
-    const map: Record<string, Record<number, number>> = {}
-    for (const m of graphMeasurements) {
-      if (!map[m.timestamp]) map[m.timestamp] = {}
-      map[m.timestamp][m.sensor_channel_id] = m.value
-    }
-    return map
-  }, [graphMeasurements])
-
-  const graphTimestamps = useMemo(
-    () => [...new Set(graphMeasurements.map(m => m.timestamp))].sort(),
-    [graphMeasurements],
-  )
-
-  const xInterval = graphTimestamps.length > 16 ? Math.floor(graphTimestamps.length / 12) : 0
+  // graphMeasurements はグラフ描画時にセンサごとにフィルタして使う
 
   const endMs   = Date.now() - offset * scopeMs
   const startMs = endMs - scopeMs
@@ -260,11 +246,29 @@ function Dashboard() {
 
       {/* センサごとのグラフ行（1センサ = 1行フル幅） */}
       {sensors.map(sensor => {
-        const chartData = graphTimestamps.map(ts => {
+        // このセンサのチャンネルが持つタイムスタンプだけを使う（他センサと混在させない）
+        const sensorChannelIds = new Set(sensor.channels.map(ch => ch.id))
+        const sensorTimestamps = [...new Set(
+          graphMeasurements
+            .filter(m => sensorChannelIds.has(m.sensor_channel_id))
+            .map(m => m.timestamp)
+        )].sort()
+
+        // チャンネルごとの計測値マップ（timestamp → value）
+        const chValueMap: Record<number, Record<string, number>> = {}
+        for (const m of graphMeasurements) {
+          if (!sensorChannelIds.has(m.sensor_channel_id)) continue
+          if (!chValueMap[m.sensor_channel_id]) chValueMap[m.sensor_channel_id] = {}
+          chValueMap[m.sensor_channel_id][m.timestamp] = m.value
+        }
+
+        const chartData = sensorTimestamps.map(ts => {
           const pt: Record<string, string | number | null> = { ts }
-          for (const ch of sensor.channels) pt[ch.name] = graphMeasureMap[ts]?.[ch.id] ?? null
+          for (const ch of sensor.channels) pt[ch.name] = chValueMap[ch.id]?.[ts] ?? null
           return pt
         })
+
+        const sensorXInterval = sensorTimestamps.length > 16 ? Math.floor(sensorTimestamps.length / 12) : 0
 
         const units   = [...new Set(sensor.channels.map(ch => ch.unit))]
         const axisId  = (unit: string) => units.indexOf(unit) === 0 ? 'L' : 'R'
@@ -295,7 +299,7 @@ function Dashboard() {
                       dataKey="ts"
                       tickFormatter={fmtTick}
                       tick={{ fontSize: 9, fill: '#94a3b8', angle: -45, textAnchor: 'end' }}
-                      interval={xInterval}
+                      interval={sensorXInterval}
                       height={50}
                     />
                     {units.map((unit, i) => (
