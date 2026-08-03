@@ -1,15 +1,5 @@
-from abc import ABC, abstractmethod
+# 後方互換のための再エクスポート。新規コードは backend.models を直接参照すること。
+from backend.models.measurement import MeasurementData
+from backend.models.device import IMeasurementDevice
 
-class MeasurementData:
-    def __init__(self, channel: int, value: float, unit: str, timestamp: str):
-        self.channel = channel
-        self.value = value
-        self.unit = unit
-        self.timestamp = timestamp
-
-
-#センサが変わってもメソッド名を変えなくてもいいようにする
-class IMeasurementDevice(ABC):
-    @abstractmethod
-    def get_data(self) -> list[MeasurementData]:
-        pass 
+__all__ = ["MeasurementData", "IMeasurementDevice"]
