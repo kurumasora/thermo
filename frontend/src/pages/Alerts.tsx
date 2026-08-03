@@ -17,9 +17,6 @@ function Alerts() {
   const [filterType, setFilterType] = useState<'all' | 'threshold' | 'trend'>('all')
   const [filterSensorId, setFilterSensorId] = useState<string>('all')
   const [page, setPage] = useState(1)
-  const [csvFrom, setCsvFrom] = useState('')
-  const [csvTo, setCsvTo] = useState('')
-
   useEffect(() => {
     getAlerts().then(res => {
       setAlerts(res.data)
@@ -33,13 +30,8 @@ function Alerts() {
   }, [])
 
   const handleCsvDownload = () => {
-    const params = new URLSearchParams()
-    if (filterSensorId !== 'all') params.append('sensor_id', filterSensorId)
-    if (filterType !== 'all') params.append('alert_type', filterType)
-    if (csvFrom) params.append('date_from', csvFrom)
-    if (csvTo) params.append('date_to', csvTo)
     const token = localStorage.getItem('token')
-    fetch(`/api/alerts/export?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch('/api/alerts/export', { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.blob())
       .then(blob => {
         const url = URL.createObjectURL(blob)
@@ -82,13 +74,7 @@ function Alerts() {
           </label>
           <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>{filtered.length}件</span>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.82rem', color: '#64748b' }}>期間：</span>
-            <input type="date" value={csvFrom} onChange={e => setCsvFrom(e.target.value)} style={inputStyle} />
-            <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>〜</span>
-            <input type="date" value={csvTo} onChange={e => setCsvTo(e.target.value)} style={inputStyle} />
-            <button onClick={handleCsvDownload} style={csvBtnStyle}>CSVダウンロード</button>
-          </div>
+          <button onClick={handleCsvDownload} style={{ ...csvBtnStyle, marginLeft: 'auto' }}>CSVダウンロード</button>
         </div>
 
         {/* テーブル */}
@@ -149,7 +135,6 @@ function Alerts() {
 
 const labelStyle: React.CSSProperties = { fontSize: '0.82rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.35rem' }
 const selectStyle: React.CSSProperties = { fontSize: '0.82rem', borderRadius: '6px', border: '1px solid #e2e8f0', padding: '0.25rem 0.4rem', color: '#475569' }
-const inputStyle: React.CSSProperties = { fontSize: '0.82rem', borderRadius: '6px', border: '1px solid #e2e8f0', padding: '0.25rem 0.5rem', color: '#475569' }
 const csvBtnStyle: React.CSSProperties = { fontSize: '0.82rem', borderRadius: '6px', border: '1px solid #e2e8f0', padding: '0.25rem 0.75rem', background: '#f8fafc', color: '#475569', cursor: 'pointer' }
 const thStyle: React.CSSProperties = { padding: '0.6rem 0.75rem', background: '#f8fafc', textAlign: 'left', color: '#64748b', fontWeight: 600, borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }
 const tdStyle: React.CSSProperties = { padding: '0.55rem 0.75rem', borderBottom: '1px solid #f1f5f9', color: '#334155', whiteSpace: 'nowrap' }

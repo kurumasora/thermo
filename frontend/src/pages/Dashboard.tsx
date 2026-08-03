@@ -33,9 +33,6 @@ function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [page, setPage]               = useState(1)
   const [pageSize, setPageSize]       = useState(20)
-  const [csvSensorId, setCsvSensorId] = useState('')
-  const [csvFrom, setCsvFrom]         = useState('')
-  const [csvTo, setCsvTo]             = useState('')
 
   const [graphMeasurements, setGraphMeasurements] = useState<Measurement[]>([])
   const [tableMeasurements, setTableMeasurements] = useState<Measurement[]>([])
@@ -120,12 +117,8 @@ function Dashboard() {
   const totalPages      = Math.ceil(allTimestamps.length / pageSize)
 
   const handleCsvDownload = () => {
-    const params = new URLSearchParams()
-    if (csvSensorId) params.append('sensor_id', csvSensorId)
-    if (csvFrom) params.append('date_from', csvFrom)
-    if (csvTo) params.append('date_to', csvTo)
     const token = localStorage.getItem('token')
-    fetch(`/api/measurements/export?${params.toString()}`, {
+    fetch('/api/measurements/export', {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(res => res.blob())
@@ -214,9 +207,6 @@ function Dashboard() {
         totalPages={totalPages}
         page={page} setPage={setPage}
         pageSize={pageSize} setPageSize={setPageSize}
-        csvSensorId={csvSensorId} setCsvSensorId={setCsvSensorId}
-        csvFrom={csvFrom} setCsvFrom={setCsvFrom}
-        csvTo={csvTo} setCsvTo={setCsvTo}
         getConfig={getConfig}
         onCsvDownload={handleCsvDownload}
       />

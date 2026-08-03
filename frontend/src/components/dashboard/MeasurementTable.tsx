@@ -12,12 +12,6 @@ interface Props {
   setPage: React.Dispatch<React.SetStateAction<number>>
   pageSize: number
   setPageSize: React.Dispatch<React.SetStateAction<number>>
-  csvSensorId: string
-  setCsvSensorId: (v: string) => void
-  csvFrom: string
-  setCsvFrom: (v: string) => void
-  csvTo: string
-  setCsvTo: (v: string) => void
   getConfig: (channelId: number) => ChannelConfig | undefined
   onCsvDownload: () => void
 }
@@ -28,10 +22,6 @@ const thStyle: React.CSSProperties = {
 }
 const tdStyle: React.CSSProperties = {
   padding: '0.5rem 0.75rem', borderBottom: '1px solid #f1f5f9', color: '#334155', whiteSpace: 'nowrap',
-}
-const tblInputStyle: React.CSSProperties = {
-  fontSize: '0.82rem', borderRadius: '6px',
-  border: '1px solid #e2e8f0', padding: '0.25rem 0.5rem', color: '#475569',
 }
 const pageBtnStyle: React.CSSProperties = {
   padding: '0.2rem 0.6rem', borderRadius: '4px', border: '1px solid #e2e8f0',
@@ -44,8 +34,7 @@ const cardStyle: React.CSSProperties = {
 
 export function MeasurementTable({
   sensors, tableMeasureMap, pagedTimestamps, totalPages, page, setPage,
-  pageSize, setPageSize, csvSensorId, setCsvSensorId, csvFrom, setCsvFrom,
-  csvTo, setCsvTo, getConfig, onCsvDownload,
+  pageSize, setPageSize, getConfig, onCsvDownload,
 }: Props) {
   return (
     <div style={{ ...cardStyle, marginTop: '0.5rem' }}>
@@ -58,19 +47,10 @@ export function MeasurementTable({
             {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}件</option>)}
           </select>
         </label>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <select value={csvSensorId} onChange={e => setCsvSensorId(e.target.value)} style={tblInputStyle}>
-            <option value="">全センサ</option>
-            {sensors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <input type="date" value={csvFrom} onChange={e => setCsvFrom(e.target.value)} style={tblInputStyle} />
-          <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>〜</span>
-          <input type="date" value={csvTo} onChange={e => setCsvTo(e.target.value)} style={tblInputStyle} />
-          <button onClick={onCsvDownload} style={{
-            fontSize: '0.82rem', borderRadius: '6px', border: '1px solid #e2e8f0',
-            padding: '0.25rem 0.75rem', background: '#f8fafc', color: '#475569', cursor: 'pointer',
-          }}>CSVダウンロード</button>
-        </div>
+        <button onClick={onCsvDownload} style={{
+          marginLeft: 'auto', fontSize: '0.82rem', borderRadius: '6px', border: '1px solid #e2e8f0',
+          padding: '0.25rem 0.75rem', background: '#f8fafc', color: '#475569', cursor: 'pointer',
+        }}>CSVダウンロード</button>
       </div>
 
       <div style={{ overflowX: 'auto' }}>
