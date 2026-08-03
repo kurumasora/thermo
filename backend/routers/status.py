@@ -152,11 +152,13 @@ def export_measurements_csv(
             sensor_name_part = "_" + channels[0][1].replace(" ", "_")
         date_part = f"_{(date_from or '').replace('-','')}_{(date_to or '').replace('-','')}" if (date_from or date_to) else ""
         filename = f"measurements{sensor_name_part}{date_part}.csv"
+        from urllib.parse import quote
+        encoded = quote(filename, safe="")
 
         return StreamingResponse(
             iter([output.getvalue()]),
             media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename={filename}"},
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
         )
     finally:
         conn.close()
@@ -216,11 +218,13 @@ def export_alerts_csv(
             sensor_part = "_" + rows[0][1].replace(" ", "_")
         date_part = f"_{(date_from or '').replace('-','')}_{(date_to or '').replace('-','')}" if (date_from or date_to) else ""
         filename = f"alerts{sensor_part}{date_part}.csv"
+        from urllib.parse import quote
+        encoded = quote(filename, safe="")
 
         return StreamingResponse(
             iter([output.getvalue()]),
             media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename={filename}"},
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
         )
     finally:
         conn.close()
