@@ -25,6 +25,9 @@ function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  const [csvSensorId, setCsvSensorId] = useState('')
+  const [csvFrom, setCsvFrom] = useState('')
+  const [csvTo, setCsvTo] = useState('')
 
   const fetchData = useCallback(() => {
     Promise.all([
@@ -48,6 +51,26 @@ function Dashboard() {
   }, [fetchData])
 
   const getConfig = (channelId: number) => configs.find(c => c.sensor_channel_id === channelId)
+
+  const handleCsvDownload = () => {
+    const params = new URLSearchParams()
+    if (csvSensorId) params.append('sensor_id', csvSensorId)
+    if (csvFrom) params.append('date_from', csvFrom)
+    if (csvTo) params.append('date_to', csvTo)
+    const token = localStorage.getItem('token')
+    fetch(`/api/measurements/export?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'measurements.csv'
+        a.click()
+        URL.revokeObjectURL(url)
+      })
+  }
 
   const isChannelDanger = (channelId: number): boolean => {
     const cfg = getConfig(channelId)
@@ -175,13 +198,13 @@ function Dashboard() {
             </select>
           </label>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <select id="csv-sensor" style={inputStyle}>
+            <select value={csvSensorId} onChange={e => setCsvSensorId(e.target.value)} style={inputStyle}>
               <option value="">全センサ</option>
               {sensors.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
-            <input type="date" id="csv-from" style={inputStyle} />
+            <input type="date" value={csvFrom} onChange={e => setCsvFrom(e.target.value)} style={inputStyle} />
             <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>〜</span>
-            <input type="date" id="csv-to" style={inputStyle} />
+            <input type="date" value={csvTo} onChange={e => setCsvTo(e.target.value)} style={inputStyle} />
             <button onClick={handleCsvDownload} style={csvBtnStyle}>CSVダウンロード</button>
           </div>
         </div>
@@ -228,28 +251,6 @@ function Dashboard() {
   )
 }
 
-function handleCsvDownload() {
-  const from = (document.getElementById('csv-from') as HTMLInputElement).value
-  const to = (document.getElementById('csv-to') as HTMLInputElement).value
-  const sensorId = (document.getElementById('csv-sensor') as HTMLSelectElement).value
-  const params = new URLSearchParams()
-  if (sensorId) params.append('sensor_id', sensorId)
-  if (from) params.append('date_from', from)
-  if (to) params.append('date_to', to)
-  const token = localStorage.getItem('token')
-  fetch(`/api/measurements/export?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-    .then(res => res.blob())
-    .then(blob => {
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'measurements.csv'
-      a.click()
-      URL.revokeObjectURL(url)
-    })
-}
 
 function ValueCard({ sensorName, channelName, value, unit, upper, lower, danger, timestamp }: {
   sensorName: string; channelName: string; value: number | undefined; unit: string
