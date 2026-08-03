@@ -120,7 +120,7 @@ function Alerts() {
                     </span>
                   </td>
                   <td style={tdStyle}>{a.value}{a.unit}</td>
-                  <td style={{ ...tdStyle, maxWidth: '300px', color: '#475569' }}>{a.message}</td>
+                  <td style={{ ...tdStyle, maxWidth: '300px', color: '#475569', whiteSpace: 'normal', wordBreak: 'break-word' }}>{a.message}</td>
                   <td style={tdStyle}>
                     {a.predicted_steps != null
                       ? (() => { const m = a.predicted_steps * 10; return <span style={{ color: '#b45309', fontWeight: 600 }}>{m >= 60 ? `約${(m / 60).toFixed(1)}時間後` : `約${Math.round(m)}分後`}</span> })()

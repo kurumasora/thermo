@@ -54,7 +54,7 @@ function Navbar() {
         <div style={{ fontSize: '1rem', fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.3px' }}>
           Thermonitor
         </div>
-        <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem' }}>温湿度監視システム</div>
+        <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.2rem' }}>データロガーシステム</div>
       </div>
 
       {/* ナビゲーション */}
