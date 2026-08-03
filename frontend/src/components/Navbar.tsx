@@ -43,11 +43,14 @@ function Navbar() {
   return (
     <aside style={{
       width: '200px',
-      minHeight: '100svh',
+      height: '100svh',
+      position: 'sticky',
+      top: 0,
       background: '#1e293b',
       display: 'flex',
       flexDirection: 'column',
       flexShrink: 0,
+      overflowY: 'auto',
     }}>
       {/* ロゴ */}
       <div style={{ padding: '1.5rem 1.25rem 1rem', borderBottom: '1px solid #334155' }}>
