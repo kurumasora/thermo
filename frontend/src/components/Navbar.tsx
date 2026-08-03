@@ -60,26 +60,49 @@ function Navbar() {
       {/* ナビゲーション */}
       <nav style={{ flex: 1, padding: '0.75rem 0' }}>
         {NAV_ITEMS.filter(item => !item.adminOnly || role === 'admin').map(item => (
-          <Link
-            key={item.to}
-            to={item.to}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.6rem',
-              padding: '0.6rem 1.25rem',
-              color: isActive(item.to) ? '#f8fafc' : '#94a3b8',
-              textDecoration: 'none',
-              fontSize: '0.88rem',
-              fontWeight: isActive(item.to) ? 600 : 400,
-              background: isActive(item.to) ? 'rgba(255,255,255,0.08)' : 'transparent',
-              borderLeft: `3px solid ${isActive(item.to) ? '#3b82f6' : 'transparent'}`,
-              transition: 'background 0.15s, color 0.15s',
-            }}
-          >
-            <span style={{ fontSize: '0.9rem', opacity: 0.85 }}>{item.icon}</span>
-            {item.label}
-          </Link>
+          <div key={item.to}>
+            <Link
+              to={item.to}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+                padding: '0.6rem 1.25rem',
+                color: isActive(item.to) ? '#f8fafc' : '#94a3b8',
+                textDecoration: 'none',
+                fontSize: '0.88rem',
+                fontWeight: isActive(item.to) ? 600 : 400,
+                background: isActive(item.to) ? 'rgba(255,255,255,0.08)' : 'transparent',
+                borderLeft: `3px solid ${isActive(item.to) ? '#3b82f6' : 'transparent'}`,
+                transition: 'background 0.15s, color 0.15s',
+              }}
+            >
+              <span style={{ fontSize: '0.9rem', opacity: 0.85 }}>{item.icon}</span>
+              {item.label}
+            </Link>
+            {item.to === '/' && isActive('/') && (
+              <div style={{ paddingLeft: '2.75rem' }}>
+                {[{ hash: '#graph', label: 'グラフ' }, { hash: '#table', label: '計測データ一覧' }].map(({ hash, label }) => (
+                  <a
+                    key={hash}
+                    href={hash}
+                    style={{
+                      display: 'block',
+                      padding: '0.3rem 0',
+                      color: '#64748b',
+                      textDecoration: 'none',
+                      fontSize: '0.8rem',
+                      transition: 'color 0.15s',
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.color = '#94a3b8')}
+                    onMouseLeave={e => (e.currentTarget.style.color = '#64748b')}
+                  >
+                    {label}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
         ))}
       </nav>
 

@@ -187,6 +187,7 @@ function Dashboard() {
       />
 
       {/* センサグラフ */}
+      <div id="graph" style={{ scrollMarginTop: '1rem' }} />
       {sensors.map(sensor => (
         <SensorGraph
           key={sensor.id}
@@ -200,6 +201,7 @@ function Dashboard() {
       ))}
 
       {/* 計測データテーブル */}
+      <div id="table" style={{ scrollMarginTop: '1rem' }} />
       <MeasurementTable
         sensors={sensors}
         tableMeasureMap={tableMeasureMap}
