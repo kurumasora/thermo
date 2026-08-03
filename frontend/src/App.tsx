@@ -21,7 +21,7 @@ function Layout() {
           <Route path="/alerts" element={<RequireAuth><Alerts /></RequireAuth>} />
           <Route path="/change-password" element={<RequireAuth><ChangePassword /></RequireAuth>} />
           <Route path="/settings" element={<Navigate to="/admin?tab=threshold" />} />
-          <Route path="/prediction" element={<Navigate to="/admin?tab=prediction" />} />
+          <Route path="/prediction" element={<Navigate to="/admin?tab=threshold" />} />
           <Route path="/admin" element={<RequireAuth requireAdmin><Admin /></RequireAuth>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
