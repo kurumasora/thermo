@@ -71,6 +71,9 @@ function Dashboard() {
   const [scopeIdx, setScopeIdx]         = useState(1) // 12時間
   const [offset, setOffset]             = useState(0) // 0 = 最新
   const [refreshTick, setRefreshTick]   = useState(0)
+  const [calMode, setCalMode]           = useState(false)
+  const [calFrom, setCalFrom]           = useState('')
+  const [calTo, setCalTo]               = useState('')
 
   const scopeMs = SCOPES[scopeIdx].hours * 3600_000
 
@@ -96,25 +99,29 @@ function Dashboard() {
     return () => clearInterval(timer)
   }, [fetchCommon])
 
-  // グラフデータをスコープ・オフセット変化時に取得
+  // グラフデータをスコープ・オフセット、またはカレンダー期間の変化時に取得
   useEffect(() => {
-    const sMs       = SCOPES[scopeIdx].hours * 3600_000
-    const endDate   = new Date(Date.now() - offset * sMs)
-    const startDate = new Date(endDate.getTime() - sMs)
-    client.get('/api/measurements', {
-      params: {
-        date_from: toLocalStr(startDate),
-        date_to:   toLocalStr(endDate),
-      },
-    }).then(res => setGraphMeasurements(res.data))
-  }, [scopeIdx, offset, refreshTick])
+    if (calMode) {
+      if (!calFrom || !calTo) return
+      client.get('/api/measurements', {
+        params: { date_from: calFrom.replace('T', ' '), date_to: calTo.replace('T', ' ') },
+      }).then(res => setGraphMeasurements(res.data))
+    } else {
+      const sMs       = SCOPES[scopeIdx].hours * 3600_000
+      const endDate   = new Date(Date.now() - offset * sMs)
+      const startDate = new Date(endDate.getTime() - sMs)
+      client.get('/api/measurements', {
+        params: { date_from: toLocalStr(startDate), date_to: toLocalStr(endDate) },
+      }).then(res => setGraphMeasurements(res.data))
+    }
+  }, [scopeIdx, offset, refreshTick, calMode, calFrom, calTo])
 
-  // 最新表示中のみ10分ごとにグラフも自動更新
+  // スコープモードかつ最新表示中のみ10分ごとにグラフも自動更新
   useEffect(() => {
-    if (offset !== 0) return
+    if (calMode || offset !== 0) return
     const id = setInterval(() => setRefreshTick(t => t + 1), POLL_INTERVAL_MS)
     return () => clearInterval(id)
-  }, [offset])
+  }, [offset, calMode])
 
   // ─── 共通ヘルパー ─────────────────────────────────────────────────────────
   const getConfig = (channelId: number) => configs.find(c => c.sensor_channel_id === channelId)
@@ -198,7 +205,7 @@ function Dashboard() {
       </div>
 
       {/* 現在値カード */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', marginBottom: '1.5rem' }}>
         {sensors.map(sensor => (
           <div key={sensor.id} style={{ display: 'grid', gridTemplateColumns: `repeat(${sensor.channels.length}, 1fr)`, gap: '0.75rem' }}>
             {sensor.channels.map(ch => {
@@ -225,31 +232,86 @@ function Dashboard() {
 
       {/* ─── グラフセクション ─────────────────────────────────────────────── */}
 
-      {/* スコープ・ナビゲーションコントロール */}
+      {/* グラフコントロール */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.9rem', flexWrap: 'wrap' }}>
-        <select
-          value={scopeIdx}
-          onChange={e => { setScopeIdx(Number(e.target.value)); setOffset(0) }}
-          style={ctrlSelect}
+        {/* カレンダーモード切替ボタン */}
+        <button
+          onClick={() => {
+            if (!calMode) {
+              // スコープモード → カレンダーモード: 現在の表示範囲を初期値にセット
+              const p = (n: number) => String(n).padStart(2, '0')
+              const toDatetimeLocal = (ms: number) => {
+                const d = new Date(ms)
+                return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+              }
+              setCalFrom(toDatetimeLocal(startMs))
+              setCalTo(toDatetimeLocal(endMs))
+            }
+            setCalMode(m => !m)
+          }}
+          style={{
+            ...navBtn,
+            background: calMode ? '#3b82f6' : '#fff',
+            color: calMode ? '#fff' : '#475569',
+            borderColor: calMode ? '#3b82f6' : '#cbd5e1',
+            fontSize: '0.83rem',
+            padding: '0.3rem 0.65rem',
+          }}
+          title="期間を指定して表示"
         >
-          {SCOPES.map((s, i) => <option key={i} value={i}>{s.label}</option>)}
-        </select>
-        <button onClick={() => setOffset(o => o + 1)} style={navBtn} title="前の期間へ">‹</button>
-        <button
-          onClick={() => setOffset(o => Math.max(0, o - 1))}
-          disabled={offset === 0}
-          style={{ ...navBtn, opacity: offset === 0 ? 0.35 : 1, cursor: offset === 0 ? 'default' : 'pointer' }}
-          title="次の期間へ"
-        >›</button>
-        <button
-          onClick={() => setOffset(0)}
-          disabled={offset === 0}
-          style={{ ...navBtn, opacity: offset === 0 ? 0.35 : 1, cursor: offset === 0 ? 'default' : 'pointer' }}
-          title="最新へ"
-        >»</button>
-        <span style={{ fontSize: '0.82rem', color: '#64748b', marginLeft: '0.3rem' }}>
-          {fmtRange(startMs)} 〜 {fmtRange(endMs)}
-        </span>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="1" y="2" width="14" height="13" rx="1.5" />
+            <line x1="1" y1="6" x2="15" y2="6" />
+            <line x1="5" y1="1" x2="5" y2="4" />
+            <line x1="11" y1="1" x2="11" y2="4" />
+          </svg>
+        </button>
+
+        {calMode ? (
+          /* カレンダーモード: 開始〜終了の datetime-local ピッカー */
+          <>
+            <input
+              type="datetime-local"
+              value={calFrom}
+              onChange={e => setCalFrom(e.target.value)}
+              style={{ ...ctrlSelect, padding: '0.25rem 0.4rem' }}
+            />
+            <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>〜</span>
+            <input
+              type="datetime-local"
+              value={calTo}
+              onChange={e => setCalTo(e.target.value)}
+              style={{ ...ctrlSelect, padding: '0.25rem 0.4rem' }}
+            />
+          </>
+        ) : (
+          /* スコープモード: ドロップダウン + ナビゲーション */
+          <>
+            <select
+              value={scopeIdx}
+              onChange={e => { setScopeIdx(Number(e.target.value)); setOffset(0) }}
+              style={ctrlSelect}
+            >
+              {SCOPES.map((s, i) => <option key={i} value={i}>{s.label}</option>)}
+            </select>
+            <button onClick={() => setOffset(o => o + 1)} style={navBtn} title="前の期間へ">‹</button>
+            <button
+              onClick={() => setOffset(o => Math.max(0, o - 1))}
+              disabled={offset === 0}
+              style={{ ...navBtn, opacity: offset === 0 ? 0.35 : 1, cursor: offset === 0 ? 'default' : 'pointer' }}
+              title="次の期間へ"
+            >›</button>
+            <button
+              onClick={() => setOffset(0)}
+              disabled={offset === 0}
+              style={{ ...navBtn, opacity: offset === 0 ? 0.35 : 1, cursor: offset === 0 ? 'default' : 'pointer' }}
+              title="最新へ"
+            >»</button>
+            <span style={{ fontSize: '0.82rem', color: '#64748b', marginLeft: '0.3rem' }}>
+              {fmtRange(startMs)} 〜 {fmtRange(endMs)}
+            </span>
+          </>
+        )}
       </div>
 
       {/* センサごとのグラフ行（1センサ = 1行フル幅） */}
