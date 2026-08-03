@@ -31,8 +31,7 @@ function Dashboard() {
   const [latest, setLatest]           = useState<Record<string, LatestEntry>>({})
   const [configs, setConfigs]         = useState<ChannelConfig[]>([])
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const [page, setPage]               = useState(1)
-  const [pageSize, setPageSize]       = useState(20)
+
 
   const [graphMeasurements, setGraphMeasurements] = useState<Measurement[]>([])
   const [tableMeasurements, setTableMeasurements] = useState<Measurement[]>([])
@@ -112,9 +111,6 @@ function Dashboard() {
     () => [...new Set(tableMeasurements.map(m => m.timestamp))].sort((a, b) => b.localeCompare(a)),
     [tableMeasurements],
   )
-
-  const pagedTimestamps = allTimestamps.slice((page - 1) * pageSize, page * pageSize)
-  const totalPages      = Math.ceil(allTimestamps.length / pageSize)
 
   const handleCsvDownload = () => {
     const token = localStorage.getItem('token')
@@ -205,10 +201,7 @@ function Dashboard() {
       <MeasurementTable
         sensors={sensors}
         tableMeasureMap={tableMeasureMap}
-        pagedTimestamps={pagedTimestamps}
-        totalPages={totalPages}
-        page={page} setPage={setPage}
-        pageSize={pageSize} setPageSize={setPageSize}
+        allTimestamps={allTimestamps}
         getConfig={getConfig}
         onCsvDownload={handleCsvDownload}
       />
