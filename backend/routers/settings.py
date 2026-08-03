@@ -9,6 +9,36 @@ from backend.judgement.factory import get_judgement_types
 router = APIRouter()
 
 
+@router.get("/api/app-settings")
+def get_app_settings(user: dict = Depends(get_current_user)):
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT key, value FROM app_settings")
+        return {row[0]: row[1] for row in cur.fetchall()}
+    finally:
+        conn.close()
+
+
+class AppSettingUpdate(BaseModel):
+    value: str
+
+
+@router.put("/api/app-settings/{key}")
+def update_app_setting(key: str, body: AppSettingUpdate, user: dict = Depends(require_admin)):
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO app_settings (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+            (key, body.value)
+        )
+        conn.commit()
+        return {"status": "ok"}
+    finally:
+        conn.close()
+
+
 @router.get("/api/judgement-types")
 def list_judgement_types(user: dict = Depends(get_current_user)):
     return get_judgement_types()

@@ -3,6 +3,7 @@ load_dotenv()
 
 import logging
 import os
+from datetime import datetime, timedelta
 from backend.devices.sensor_map import SENSOR_MAP
 from backend.judgement.threshold import ThresholdJudgement
 from backend.judgement.factory import create_judgement
@@ -39,6 +40,19 @@ def main():
     try:
         conn = get_connection()
         cur = conn.cursor()
+
+        # インターバル設定を読み込み、前回実行から経過していなければスキップ
+        cur.execute("SELECT value FROM app_settings WHERE key = 'monitor_interval_minutes'")
+        row = cur.fetchone()
+        interval_minutes = int(row[0]) if row else 10
+        cur.execute(
+            "SELECT MAX(timestamp) FROM measurements"
+        )
+        last_row = cur.fetchone()
+        last_ts = last_row[0] if last_row else None
+        if last_ts and datetime.now() - last_ts < timedelta(minutes=interval_minutes):
+            logger.info(f"インターバル未経過のためスキップ (間隔: {interval_minutes}分, 最終: {last_ts})")
+            return
 
         # SMTP設定を読み込む（未設定ならNone）
         email_notifier = load_email_notifier(conn)

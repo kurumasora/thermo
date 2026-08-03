@@ -3,13 +3,15 @@ import { SensorTab } from '../components/admin/SensorTab'
 import { ThresholdTab } from '../components/admin/ThresholdTab'
 import { UserTab } from '../components/admin/UserTab'
 import { NotificationTab } from '../components/admin/NotificationTab'
+import { SystemTab } from '../components/admin/SystemTab'
 
-type Tab = 'sensor' | 'threshold' | 'user' | 'notification'
+type Tab = 'sensor' | 'threshold' | 'user' | 'notification' | 'system'
 const TABS: { key: Tab; label: string }[] = [
   { key: 'sensor',       label: 'センサ管理' },
   { key: 'threshold',    label: '閾値設定' },
   { key: 'user',         label: 'ユーザー管理' },
   { key: 'notification', label: '通知設定' },
+  { key: 'system',       label: 'システム設定' },
 ]
 
 function Admin() {
@@ -40,6 +42,7 @@ function Admin() {
       {tab === 'threshold'    && <ThresholdTab />}
       {tab === 'user'         && <UserTab />}
       {tab === 'notification' && <NotificationTab />}
+      {tab === 'system'       && <SystemTab />}
     </div>
   )
 }
