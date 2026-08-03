@@ -119,7 +119,7 @@ function Dashboard() {
       </div>
 
       {/* センサごとに現在値カード＋グラフをまとめたカラムレイアウト */}
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${sensors.length || 1}, 1fr)`, gap: '1rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         {sensors.map(sensor => (
           <div key={sensor.id} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
