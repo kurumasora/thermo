@@ -79,20 +79,7 @@ def main():
             except Exception as e:
                 logger.error(f"{sensor_key} データ取得エラー: {e}", exc_info=True)
 
-        # ondotoriのタイムスタンプがDBに未登録（新データ）のときだけ他センサに適用する
-        # ondotoriデバイスが旧タイムスタンプを返し続けるケースで他センサが詰まるのを防ぐ
-        ondotori_timestamp_is_new = False
         if reference_timestamp:
-            cur.execute(
-                """SELECT 1 FROM measurements m
-                   JOIN sensor_channels sc ON sc.id = m.sensor_channel_id
-                   JOIN sensors s ON s.id = sc.sensor_id
-                   WHERE s.sensor_key = 'ondotori_1' AND m.timestamp = %s LIMIT 1""",
-                (reference_timestamp,)
-            )
-            ondotori_timestamp_is_new = cur.fetchone() is None
-
-        if ondotori_timestamp_is_new:
             for sensor_key, data_list in sensor_data_map.items():
                 if sensor_key != 'ondotori_1':
                     for d in data_list:
