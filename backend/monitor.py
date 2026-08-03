@@ -10,7 +10,7 @@ from backend.notification.webhook import TeamsWebhook
 from backend.notification.email import load_email_notifier
 from backend.db import get_connection
 
-_log_path = os.environ.get("MONITOR_LOG_PATH", "monitor.log")
+_log_path = os.environ.get("MONITOR_LOG_PATH", "logs/monitor.log")
 logging.basicConfig(
     filename=_log_path,
     level=logging.INFO,
