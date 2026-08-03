@@ -6,8 +6,8 @@ import os
 from backend.devices.sensor_map import SENSOR_MAP
 from backend.judgement.threshold import ThresholdJudgement
 from backend.judgement.factory import create_judgement
-from backend.notification.webhook import TeamsWebhook
-from backend.notification.email import load_email_notifier
+from backend.notifiers.webhook import TeamsWebhook
+from backend.notifiers.email import load_email_notifier
 from backend.db import get_connection
 
 _log_path = os.environ.get("MONITOR_LOG_PATH", "logs/monitor.log")

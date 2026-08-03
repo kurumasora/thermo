@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from backend.notification.webhook import TeamsWebhook
+from backend.notifiers.webhook import TeamsWebhook
 
 webhook = TeamsWebhook()
 webhook.send("テスト通知：閾値以上を検知しました")

@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from backend.db import get_connection
-from backend.notification.email import load_email_notifier
+from backend.notifiers.email import load_email_notifier
 
 def main():
     if len(sys.argv) < 2:

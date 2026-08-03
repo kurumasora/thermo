@@ -31,8 +31,8 @@ from backend.db import get_connection
 from backend.interfaces import MeasurementData
 from backend.judgement.threshold import ThresholdJudgement
 from backend.judgement.factory import create_judgement
-from backend.notification.webhook import TeamsWebhook
-from backend.notification.email import load_email_notifier
+from backend.notifiers.webhook import TeamsWebhook
+from backend.notifiers.email import load_email_notifier
 
 
 def list_sensors(cur):
