@@ -50,7 +50,7 @@ def main():
         )
         last_row = cur.fetchone()
         last_ts = last_row[0] if last_row else None
-        if last_ts and datetime.now() - last_ts < timedelta(minutes=interval_minutes):
+        if last_ts and datetime.now(tz=last_ts.tzinfo) - last_ts < timedelta(minutes=interval_minutes):
             logger.info(f"インターバル未経過のためスキップ (間隔: {interval_minutes}分, 最終: {last_ts})")
             return
 
