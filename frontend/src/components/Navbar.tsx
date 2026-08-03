@@ -80,6 +80,18 @@ function Navbar() {
               <span style={{ fontSize: '0.9rem', opacity: 0.85 }}>{item.icon}</span>
               {item.label}
             </Link>
+            {item.to === '/alerts' && isActive('/alerts') && (
+              <div style={{ paddingLeft: '2.75rem' }}>
+                <a
+                  href="#bottom"
+                  style={{ display: 'block', padding: '0.3rem 0', color: '#64748b', textDecoration: 'none', fontSize: '0.8rem', transition: 'color 0.15s' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#94a3b8')}
+                  onMouseLeave={e => (e.currentTarget.style.color = '#64748b')}
+                >
+                  最下部
+                </a>
+              </div>
+            )}
             {item.to === '/' && isActive('/') && (
               <div style={{ paddingLeft: '2.75rem' }}>
                 {[{ hash: '#graph', label: 'グラフ' }, { hash: '#table', label: '計測データ一覧' }].map(({ hash, label }) => (

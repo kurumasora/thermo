@@ -120,6 +120,7 @@ function Alerts() {
           </table>
         </div>
 
+        <div id="bottom" style={{ scrollMarginTop: '1rem' }} />
         {total > 1 && (
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.75rem' }}>
             <button onClick={() => setPage(p => p - 1)} disabled={page === 1} style={pageBtnStyle}>‹</button>
