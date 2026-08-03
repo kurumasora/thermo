@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { jwtDecode } from 'jwt-decode'
-import client from '../api/client'
+import {
+  getSensors, getSensorMapKeys, createSensor, deleteSensor, toggleSensorActive,
+  getSensorEmailRecipients, addEmailRecipient, deleteEmailRecipient,
+  updateSensorNotification, updateSensorWebhook,
+} from '../api/sensors'
+import { getSettings, updateSettings, getJudgementTypes } from '../api/settings'
+import { getUsers, createUser, deleteUser, updateUserRole, updateUserPassword } from '../api/users'
+import { getSmtpConfig, updateSmtpConfig } from '../api/notification'
 import { formatTimestamp } from '../utils/format'
 
 interface TokenPayload { sub: string }
@@ -90,17 +97,17 @@ function SensorTab() {
   const [newChannels, setNewChannels] = useState<ChannelInput[]>([emptyChannel()])
   const [addError, setAddError] = useState<string | null>(null)
 
-  const fetchSensors = () => client.get('/api/sensors').then(res => setSensors(res.data))
-  useEffect(() => { fetchSensors(); client.get('/api/admin/sensor-map-keys').then(res => setSensorMapKeys(res.data.keys)) }, [])
+  const fetchSensors = () => getSensors().then(res => setSensors(res.data))
+  useEffect(() => { fetchSensors(); getSensorMapKeys().then(res => setSensorMapKeys(res.data.keys)) }, [])
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
   const handleToggle = async (id: number) => {
-    const res = await client.put(`/api/admin/sensors/${id}/active`)
+    const res = await toggleSensorActive(id)
     setSensors(sensors.map(s => s.id === id ? { ...s, active: res.data.active } : s))
   }
   const handleDelete = async (id: number, name: string) => {
     if (!confirm(`「${name}」を削除しますか？\n関連する計測データ・アラート履歴は保持されます。`)) return
-    await client.delete(`/api/admin/sensors/${id}`)
+    await deleteSensor(id)
     showToast('センサを削除しました'); fetchSensors()
   }
   const updateChannel = (idx: number, field: keyof ChannelInput, value: string | number | boolean) =>
@@ -112,7 +119,7 @@ function SensorTab() {
     if (!newSensorName) { setAddError('センサ名を入力してください'); return }
     if (newChannels.some(ch => !ch.name)) { setAddError('チャンネル名を入力してください'); return }
     try {
-      await client.post('/api/admin/sensors', { sensor_key: newSensorKey, name: newSensorName, channels: newChannels })
+      await createSensor({ sensor_key: newSensorKey, name: newSensorName, channels: newChannels })
       showToast('センサを追加しました（初期状態は無効）')
       setShowAddForm(false); setNewSensorKey(''); setNewSensorName(''); setNewChannels([emptyChannel()])
       fetchSensors()
@@ -225,8 +232,8 @@ function ThresholdTab() {
   const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
-    client.get('/api/settings').then(res => setConfigs(res.data))
-    client.get('/api/judgement-types').then(res => setJudgementTypes(res.data))
+    getSettings().then(res => setConfigs(res.data))
+    getJudgementTypes().then(res => setJudgementTypes(res.data))
   }, [])
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
@@ -235,7 +242,7 @@ function ThresholdTab() {
   const updateParam = (id: number, key: string, value: number) =>
     setConfigs(configs.map(c => c.sensor_channel_id === id ? { ...c, judgement_params: { ...c.judgement_params, [key]: value } } : c))
   const handleSave = async (c: ChannelConfig) => {
-    await client.put(`/api/settings/${c.sensor_channel_id}`, {
+    await updateSettings(c.sensor_channel_id, {
       upper_threshold: c.upper_threshold, lower_threshold: c.lower_threshold,
       trend_monitor: c.trend_monitor, judgement_type: c.judgement_type, judgement_params: c.judgement_params,
     })
@@ -304,26 +311,26 @@ function UserTab() {
     try { return jwtDecode<TokenPayload>(localStorage.getItem('token') ?? '').sub } catch { return '' }
   })()
 
-  const fetchUsers = async () => { const res = await client.get('/api/admin/users'); setUsers(res.data) }
+  const fetchUsers = async () => { const res = await getUsers(); setUsers(res.data) }
   useEffect(() => { fetchUsers() }, [])
 
   const handleCreate = async () => {
     if (!username || !password) return
-    await client.post('/api/admin/users', { username, password, role })
+    await createUser(username, password, role)
     setUsername(''); setPassword(''); await fetchUsers()
   }
   const handleDelete = async (id: number) => {
     if (!confirm('削除しますか？')) return
-    await client.delete(`/api/admin/users/${id}`)
+    await deleteUser(id)
     setUsers(users.filter(u => u.id !== id))
   }
   const handleRoleChange = async (id: number, newRole: string) => {
-    await client.put(`/api/admin/users/${id}/role`, { role: newRole })
+    await updateUserRole(id, newRole)
     setUsers(users.map(u => u.id === id ? { ...u, role: newRole } : u))
   }
   const handlePasswordReset = async (id: number) => {
     const newPassword = resetPasswords[id]; if (!newPassword) return
-    await client.put(`/api/admin/users/${id}/password`, { password: newPassword })
+    await updateUserPassword(id, newPassword)
     setResetPasswords(prev => ({ ...prev, [id]: '' })); alert('パスワードをリセットしました')
   }
 
@@ -403,11 +410,11 @@ function NotificationTab() {
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000) }
   const fetchAll = async () => {
-    const [smtpRes, sensorRes] = await Promise.all([client.get('/api/admin/smtp-config'), client.get('/api/sensors')])
+    const [smtpRes, sensorRes] = await Promise.all([getSmtpConfig(), getSensors()])
     setSmtp(smtpRes.data)
     const webhooks: Record<number, string> = {}
     const withRecipients = await Promise.all(sensorRes.data.map(async (s: any) => {
-      const r = await client.get(`/api/admin/sensors/${s.id}/email-recipients`)
+      const r = await getSensorEmailRecipients(s.id)
       webhooks[s.id] = s.webhook_url ?? ''
       return { ...s, recipients: r.data }
     }))
@@ -416,27 +423,27 @@ function NotificationTab() {
   useEffect(() => { fetchAll() }, [])
 
   const handleSmtpSave = async () => {
-    await client.put('/api/admin/smtp-config', { host: smtp.host, port: smtp.port, username: smtp.username, from_address: smtp.from_address, ...(password ? { password } : {}) })
+    await updateSmtpConfig({ host: smtp.host, port: smtp.port, username: smtp.username, from_address: smtp.from_address, ...(password ? { password } : {}) })
     setPassword(''); showToast('SMTPの設定を保存しました')
   }
   const handleNotificationToggle = async (id: number, field: 'webhook_enabled' | 'email_enabled') => {
     const s = sensors.find(s => s.id === id)!
     const updated = { webhook_enabled: s.webhook_enabled, email_enabled: s.email_enabled, [field]: !s[field] }
-    await client.put(`/api/admin/sensors/${id}/notification`, updated)
+    await updateSensorNotification(id, updated)
     setSensors(sensors.map(s => s.id === id ? { ...s, ...updated } : s))
   }
   const handleWebhookSave = async (id: number) => {
-    await client.put(`/api/admin/sensors/${id}/webhook`, { webhook_url: webhookInputs[id] || null })
+    await updateSensorWebhook(id, webhookInputs[id] || null)
     setSensors(sensors.map(s => s.id === id ? { ...s, webhook_url: webhookInputs[id] || null } : s))
     showToast('Webhook URLを保存しました')
   }
   const handleAddEmail = async (sensorId: number) => {
     const email = newEmails[sensorId]?.trim(); if (!email) return
-    await client.post(`/api/admin/sensors/${sensorId}/email-recipients`, { email })
+    await addEmailRecipient(sensorId, email)
     setNewEmails(prev => ({ ...prev, [sensorId]: '' })); fetchAll(); showToast('メールアドレスを追加しました')
   }
   const handleDeleteEmail = async (sensorId: number, recipientId: number) => {
-    await client.delete(`/api/admin/email-recipients/${recipientId}`)
+    await deleteEmailRecipient(recipientId)
     setSensors(sensors.map(s => s.id === sensorId ? { ...s, recipients: s.recipients.filter(r => r.id !== recipientId) } : s))
   }
 

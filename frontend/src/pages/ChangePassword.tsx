@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import client from '../api/client'
+import { changePassword } from '../api/auth'
 
 function ChangePassword() {
   const [currentPassword, setCurrentPassword] = useState('')
@@ -16,7 +16,7 @@ function ChangePassword() {
     if (newPassword !== confirm) { showToast('新しいパスワードが一致しません', 'error'); return }
     if (newPassword.length < 4) { showToast('パスワードは4文字以上で設定してください', 'error'); return }
     try {
-      await client.put('/api/auth/password', { current_password: currentPassword, new_password: newPassword })
+      await changePassword(currentPassword, newPassword)
       setCurrentPassword(''); setNewPassword(''); setConfirm('')
       showToast('パスワードを変更しました', 'success')
     } catch (err: any) {

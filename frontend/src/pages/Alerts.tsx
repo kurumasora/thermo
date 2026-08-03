@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import client from '../api/client'
+import { getAlerts } from '../api/alerts'
 import { formatTimestamp } from '../utils/format'
 
 type Alert = {
@@ -21,7 +21,7 @@ function Alerts() {
   const [csvTo, setCsvTo] = useState('')
 
   useEffect(() => {
-    client.get('/api/alerts').then(res => {
+    getAlerts().then(res => {
       setAlerts(res.data)
       const seen = new Set<number>()
       const list: Sensor[] = []

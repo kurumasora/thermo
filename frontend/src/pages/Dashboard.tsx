@@ -2,7 +2,9 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer,
 } from 'recharts'
-import client from '../api/client'
+import { getSensors, } from '../api/sensors'
+import { getMeasurements, getLatestMeasurements } from '../api/measurements'
+import { getSettings } from '../api/settings'
 import { formatTimestamp } from '../utils/format'
 
 type SensorChannel = { id: number; channel_no: number; name: string; unit: string }
@@ -80,10 +82,10 @@ function Dashboard() {
   // 共通データ（センサ一覧・最新値・設定）を10分ごとにポーリング
   const fetchCommon = useCallback(() => {
     Promise.all([
-      client.get('/api/sensors'),
-      client.get('/api/measurements/latest'),
-      client.get('/api/settings'),
-      client.get('/api/measurements'), // テーブル用（直近500件）
+      getSensors(),
+      getLatestMeasurements(),
+      getSettings(),
+      getMeasurements({}), // テーブル用（直近500件）
     ]).then(([sRes, lRes, cRes, mRes]) => {
       setSensors(sRes.data.filter((s: Sensor) => s.active))
       setLatest(lRes.data)
@@ -103,16 +105,14 @@ function Dashboard() {
   useEffect(() => {
     if (calMode) {
       if (!calFrom || !calTo) return
-      client.get('/api/measurements', {
-        params: { date_from: calFrom.replace('T', ' '), date_to: calTo.replace('T', ' ') },
-      }).then(res => setGraphMeasurements(res.data))
+      getMeasurements({ date_from: calFrom.replace('T', ' '), date_to: calTo.replace('T', ' ') })
+        .then(res => setGraphMeasurements(res.data))
     } else {
       const sMs       = SCOPES[scopeIdx].hours * 3600_000
       const endDate   = new Date(Date.now() - offset * sMs)
       const startDate = new Date(endDate.getTime() - sMs)
-      client.get('/api/measurements', {
-        params: { date_from: toLocalStr(startDate), date_to: toLocalStr(endDate) },
-      }).then(res => setGraphMeasurements(res.data))
+      getMeasurements({ date_from: toLocalStr(startDate), date_to: toLocalStr(endDate) })
+        .then(res => setGraphMeasurements(res.data))
     }
   }, [scopeIdx, offset, refreshTick, calMode, calFrom, calTo])
 

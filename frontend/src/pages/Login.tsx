@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import client from '../api/client'
+import { login } from '../api/auth'
 import { jwtDecode } from 'jwt-decode'
 
 interface TokenPayload { exp: number }
@@ -22,7 +22,7 @@ function Login() {
 
   const handleLogin = async () => {
     try {
-      const res = await client.post('/api/auth/login', { username, password })
+      const res = await login(username, password)
       localStorage.setItem('token', res.data.access_token)
       window.location.href = '/'
     } catch {
