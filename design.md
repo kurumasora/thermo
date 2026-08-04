@@ -11,10 +11,10 @@
 ## 2．前提条件
 | 項目 | 内容 |
 |---|---|
-| センサ | おんどとり TR-7（温度 2ch） |
+| センサ | おんどとり TR-71A2（温度 2ch，WiFi直結モデル） |
 | データ蓄積 | おんどとり WebStorage（クラウド） |
 | データ取得 | おんどとり WebStorage API |
-| 実行環境 | さくらVPS |
+| 実行環境 | さくらVPS（本番） / Docker（顧客配布用） |
 | 開発体制 | 一人開発 |
 
 ---
@@ -26,9 +26,11 @@
 | バックエンド | FastAPI（Python） |
 | フロントエンド | React（TypeScript） |
 | DB | PostgreSQL |
-| 定期実行 | cron |
-| 通知 | Microsoft Teams Webhook |
-| インフラ | さくらVPS + Nginx |
+| 定期実行 | cron + flock（本番） / monitor_loop.py 常駐プロセス（Docker） |
+| 通知 | Microsoft Teams Webhook，メール（SMTP） |
+| インフラ（本番） | さくらVPS + Nginx + Let's Encrypt |
+| インフラ（配布） | Docker Compose（Nginx + FastAPI + PostgreSQL） |
+| グラフ描画 | recharts（AreaChart，数値タイムスタンプ軸） |
 
 ---
 
@@ -36,14 +38,16 @@
 | ID | 機能 | 内容 |
 |---|---|---|
 | FR-01 | データ取得 | 共通インターフェース（IMeasurementDevice）経由で温度データを取得する |
-| FR-02 | データ蓄積・管理 | タイムスタンプ付きで時系列データをPostgreSQLに保存する |
+| FR-02 | データ蓄積・管理 | cron実行時刻を全センサ共通タイムスタンプとしてPostgreSQLに保存する |
 | FR-03 | 閾値異常検知 | 下限値 ≤ 計測値 ≤ 上限値 を外れた時点で即時アラートを発報する |
-| FR-04 | 傾向異常検知 | 直近データに一次回帰を適用し，傾き（変化速度）が設定値を超えた場合に予兆アラートを発報する．実タイムスタンプを使った回帰とR²フィルター（デフォルト0.75）により誤検知を抑制する．閾値到達予測時刻（例：約33分後 2026/07/25 05:15）を通知・履歴に表示する（ON/OFF切替可能） |
-| FR-09 | 予測精度追跡 | 傾向異常発報時に予測到達時刻をDBに保存し，予測時刻到達後に実測値と照合して「的中／外れ」を自動記録する．管理者は精度レポート画面で的中率・予測履歴を確認できる（ON/OFF切替可能） |
-| FR-05 | 即時通知 | アラート発生時点でWebhookにより即時通知する |
+| FR-04 | 傾向異常検知 | 直近データに一次回帰を適用し，傾き（変化速度）が設定値を超えた場合に予兆アラートを発報する．実タイムスタンプを使った回帰とR²フィルター（デフォルト0.75）により誤検知を抑制する．閾値到達予測時刻を通知・履歴に表示する（ON/OFF切替可能） |
+| FR-05 | 即時通知 | アラート発生時点でWebhook・メールにより即時通知する |
 | FR-06 | ログイン認証 | ID・パスワードによるログイン認証を行い，未認証ユーザーはログイン画面のみ表示する |
 | FR-07 | ロールベースアクセス制御 | 管理者と一般ユーザーでアクセスできる画面を制限する |
 | FR-08 | ユーザー管理 | 管理者がユーザーの追加・削除・ロール変更・パスワードリセットを行える |
+| FR-10 | データ収集間隔設定 | 管理画面からデータ収集間隔（分）をDB経由で動的に変更できる |
+| FR-11 | CSV出力 | 計測データ・アラート履歴をCSVでダウンロードできる（UTF-8，RFC 5987対応） |
+| FR-12 | 計測データフィルター | センサ・日付範囲で計測データ一覧を絞り込める |
 
 ---
 
@@ -52,132 +56,199 @@
 |---|---|---|
 | NFR-01 | 拡張性 | センサ追加時に判定・通知の処理を変更しない設計とする |
 | NFR-02 | 保守性 | 機能ごとにファイルを分割し，責務を明確にする |
-| NFR-03 | 設定変更容易性 | 閾値・管理限界値はPostgreSQLで管理し，Web UIから変更可能とする |
+| NFR-03 | 設定変更容易性 | 閾値・収集間隔はPostgreSQLで管理し，Web UIから変更可能とする |
 | NFR-04 | 説明可能性 | 設計判断を言語化して説明できること |
 | NFR-05 | テスト容易性 | 各モジュールを単独でテスト・動作確認できる構造とする |
 | NFR-06 | セキュリティ | パスワードはハッシュ化してDBに保存し，平文では保持しない |
 | NFR-07 | アクセス制限 | ログイン済みユーザーのみシステムにアクセスできる．アカウント発行は管理者が一元管理する |
+| NFR-08 | 配布容易性 | Docker Composeで顧客環境に簡単にデプロイできる |
 
 ---
 
 ## 6．マスタ管理項目
 以下の設定値はすべてPostgreSQLで管理し，プログラム内にハードコーディングしない．
 
-### master_config テーブル（チャンネルごと）
+### channel_config テーブル（チャンネルごと）
 | 設定項目 | 用途 |
 |---|---|
 | 上限閾値 | 閾値異常判定の上限値 |
 | 下限閾値 | 閾値異常判定の下限値 |
-| 回帰傾き閾値 | 一次回帰の傾きの上限値（℃/10分） |
+| 回帰傾き閾値 | 一次回帰の傾きの上限値 |
 | 回帰対象データ数 | 回帰計算に使用する直近データの件数 |
 | 傾向監視 ON/OFF | 傾向異常検知機能の有効・無効 |
 
-### system_settings テーブル（システム全体）
+### app_settings テーブル（システム全体）
 | キー | 用途 |
 |---|---|
-| `prediction_tracking` | 傾向予測の精度追跡機能の有効・無効（管理者がUIから切替） |
+| `monitor_interval_minutes` | データ収集間隔（分）．デフォルト10分 |
 
 ### その他
 | 項目 | 管理場所 |
 |---|---|
 | ユーザー情報（ID・ハッシュ化パスワード・ロール） | users テーブル |
-| Teams Webhook URL | .env（コードにハードコーディングしない） |
+| Teams Webhook URL | sensors テーブル（センサごと） |
+| SMTP設定 | smtp_config テーブル |
 
 ---
 
 ## 7．システム構成図
+
+### 本番環境（さくらVPS）
 ```
 【利用者】
 ブラウザ（React）
-    ↕ HTTPS（サブドメイン経由）
-Nginx（リバースプロキシ）
-    ├─ / → React（静的ファイル配信）
-    └─ /api/ → FastAPI :8100
+    ↕ HTTPS（thermonitor.ahirukuma.cc）
+Nginx（リバースプロキシ，SSL終端）
+    ├─ / → React（静的ファイル，Nginxが配信）
+    └─ /api/ → FastAPI :8100（uvicorn）
         ↕
-PostgreSQL（マスタ・アラート履歴・ユーザー情報・予測記録）
+PostgreSQL（計測データ・アラート履歴・ユーザー情報・設定）
 
 【自動実行】
-cron → monitor.py
-    ↓ マスタ読み込み
-PostgreSQL
-    ↓ 判定
-threshold.py / trend.py
-    ↓ アラート検知時
-    ├─ webhook.py → Microsoft Teams
-    └─ prediction.py → trend_predictions テーブルに予測保存・検証
+crontab（毎分） + flock（二重起動防止）
+    → monitor.py
+        ↓ app_settings から収集間隔を読み込み，未経過ならスキップ
+        ↓ cron実行時刻を全センサ共通タイムスタンプとして使用
+        ├─ おんどとり WebStorage API → 温度データ取得
+        ↓ 閾値・傾向判定
+        ├─ webhook.py → Microsoft Teams
+        └─ email.py → メール通知
+```
+
+### Docker環境（顧客配布用）
+```
+【利用者】
+ブラウザ
+    ↕ HTTP :8080
+Nginx コンテナ（静的ファイル配信 + /api/ プロキシ）
+    └─ /api/ → app コンテナ :8000（uvicorn）
+        ↕
+db コンテナ（PostgreSQL）
+
+【自動実行】
+monitor コンテナ（monitor_loop.py 常駐）
+    → 1分ごとに monitor.main() を呼び出し
+    → 収集間隔はDBのapp_settingsで制御
 ```
 
 ---
 
-## 8．プロジェクトファイル構成
+## 8．タイムスタンプ設計方針
+センサごとに取得タイムスタンプが異なると，テーブル表示で行が揃わない問題が発生する．
+そのため，**cron実行時刻（`datetime.now()`）を全センサ共通タイムスタンプ**として使用する．
+
+- センサAPIが返すタイムスタンプは無視する
+- ondotoriのrssi（WiFi直結のTR-71A2では常に空）によるオフライン判定は行わない
+- 1センサがオフラインでも他センサのデータ保存には影響しない
+
+---
+
+## 9．プロジェクトファイル構成
 ```
-project/
+thermo/
 ├─ backend/
 │   ├─ main.py                  # FastAPI アプリ本体
 │   ├─ monitor.py               # cron で実行する監視スクリプト
-│   ├─ interfaces.py            # IMeasurementDevice 定義
+│   ├─ monitor_loop.py          # Docker用常駐監視プロセス
+│   ├─ interfaces.py            # IMeasurementDevice・MeasurementData 定義
 │   ├─ db.py                    # DB接続（psycopg2）
+│   ├─ Dockerfile
 │   ├─ devices/
-│   │   └─ ondotori.py          # おんどとり取得処理
+│   │   ├─ ondotori.py          # おんどとり取得処理
+│   │   └─ sensor_map.py        # センサキー → クラスのマッピング
 │   ├─ judgement/
 │   │   ├─ threshold.py         # 閾値異常判定
 │   │   ├─ trend.py             # 傾向異常判定（実時刻回帰・R²フィルター）
-│   │   └─ prediction.py        # 予測保存・検証ロジック
-│   ├─ notification/
-│   │   └─ webhook.py           # Webhook 通知
+│   │   └─ factory.py           # 判定クラスのファクトリ
+│   ├─ notifiers/
+│   │   ├─ webhook.py           # Teams Webhook 通知
+│   │   └─ email.py             # メール通知（SMTP）
 │   ├─ auth/
 │   │   ├─ router.py            # ログイン・パスワード変更 API
 │   │   └─ utils.py             # パスワードハッシュ化・JWT管理
 │   ├─ routers/
-│   │   ├─ settings.py          # 閾値設定の API エンドポイント
-│   │   ├─ status.py            # 現在値・アラート履歴の API
-│   │   ├─ admin.py             # ユーザー管理の API エンドポイント
-│   │   └─ prediction.py        # 予測精度レポート・ON/OFF切替 API
+│   │   ├─ settings.py          # 閾値・app_settings API
+│   │   ├─ status.py            # 計測データ・アラート履歴・CSV出力 API
+│   │   └─ admin.py             # ユーザー管理 API
 │   ├─ migrations/
-│   │   └─ 002_trend_predictions.sql  # trend_predictions・system_settings テーブル
+│   │   ├─ 001_init.sql
+│   │   ├─ 002_trend_predictions.sql
+│   │   ├─ 003_sensor_generalization.sql
+│   │   ├─ 004_sensor_webhook.sql
+│   │   ├─ 005_email_notification.sql
+│   │   ├─ 006_pluggable_judgement.sql
+│   │   ├─ 007_drop_legacy_judgement_columns.sql
+│   │   ├─ 008_drop_prediction_tables.sql
+│   │   └─ 009_app_settings.sql
 │   └─ requirements.txt
 │
 ├─ frontend/
 │   ├─ src/
 │   │   ├─ App.tsx
+│   │   ├─ types/
+│   │   │   └─ dashboard.ts          # 型定義（Sensor, ChannelConfig 等）
 │   │   ├─ pages/
 │   │   │   ├─ Login.tsx             # ログイン画面
-│   │   │   ├─ Dashboard.tsx         # 現在値カード・温度グラフ・計測テーブル
-│   │   │   ├─ Alerts.tsx            # アラート履歴（フィルター・ページネーション）
-│   │   │   ├─ Settings.tsx          # 閾値設定画面
-│   │   │   ├─ Admin.tsx             # ユーザー管理画面
-│   │   │   ├─ ChangePassword.tsx    # パスワード変更画面
-│   │   │   └─ PredictionReport.tsx  # 傾向予測 精度レポート画面
+│   │   │   ├─ Dashboard.tsx         # 現在値カード・グラフ・計測テーブル
+│   │   │   ├─ Alerts.tsx            # アラート履歴
+│   │   │   ├─ Admin.tsx             # 管理画面（ユーザー・センサ・システム・閾値）
+│   │   │   └─ ChangePassword.tsx    # パスワード変更画面
 │   │   ├─ components/
-│   │   │   ├─ Navbar.tsx            # ナビゲーションバー（ロール別表示制御）
-│   │   │   └─ RequireAuth.tsx       # ルートガード（JWT期限チェック）
+│   │   │   ├─ Navbar.tsx            # ナビゲーションバー（sticky，ロール別，アンカーリンク）
+│   │   │   ├─ RequireAuth.tsx       # ルートガード（JWT期限チェック）
+│   │   │   ├─ dashboard/
+│   │   │   │   ├─ ValueCard.tsx     # 現在値カード
+│   │   │   │   ├─ SensorGraph.tsx   # 温湿度グラフ（時系列軸）
+│   │   │   │   ├─ GraphControls.tsx # スコープ・日時範囲コントロール
+│   │   │   │   └─ MeasurementTable.tsx # 計測データ一覧（フィルター・ページネーション）
+│   │   │   └─ admin/
+│   │   │       ├─ UserTab.tsx       # ユーザー管理タブ
+│   │   │       ├─ SensorTab.tsx     # センサ管理タブ
+│   │   │       ├─ ThresholdTab.tsx  # 閾値設定タブ
+│   │   │       └─ SystemTab.tsx     # システム設定タブ（収集間隔）
 │   │   ├─ utils/
 │   │   │   └─ format.ts             # タイムスタンプ統一フォーマット関数
 │   │   └─ api/
 │   │       └─ client.ts             # axiosインスタンス（401自動リダイレクト）
+│   ├─ Dockerfile
+│   ├─ nginx.conf
 │   ├─ package.json
 │   └─ tsconfig.json
 │
-├─ test_alert.py                # アラート通知テストスクリプト
-└─ monitor.log                  # 監視ログ（.gitignore対象）
+├─ tests/
+│   ├─ test_threshold.py
+│   ├─ test_trend.py
+│   ├─ test_monitor.py
+│   └─ test_collection_timestamp.py
+│
+├─ scripts/
+│   ├─ start_api.sh             # uvicorn起動スクリプト（crontab @reboot用）
+│   └─ migrate_app_settings.py  # app_settingsテーブル初期化スクリプト
+│
+├─ docs/
+│   └─ setup.md                 # Docker環境セットアップ手順書
+│
+├─ docker-compose.yml
+├─ .env.example
+├─ logs/
+│   ├─ monitor.log
+│   └─ uvicorn.log
+└─ design.md
 ```
 
 ---
 
-## 9．センサ拡張の設計方針
-新しいセンサを追加する際は，`devices/` 以下に実装クラスを1つ追加するだけでよい．判定・通知・Web UIのコードは変更不要とする．
+## 10．センサ拡張の設計方針
+新しいセンサを追加する際は，`devices/` 以下に実装クラスを1つ追加し，`sensor_map.py` にエントリを追記するだけでよい．判定・通知・Web UIのコードは変更不要とする．
 
 ```python
 # interfaces.py
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-
 @dataclass
 class MeasurementData:
     channel: int        # チャンネル番号
     value: float        # 計測値
-    unit: str           # 単位（℃，dB，% など）
-    timestamp: str      # 取得時刻
+    unit: str           # 単位（℃，% など）
+    timestamp: str      # 取得時刻（monitor.pyが上書きするため初期値は不問）
 
 class IMeasurementDevice(ABC):
     @abstractmethod
@@ -188,147 +259,78 @@ class IMeasurementDevice(ABC):
 | ファイル | 変更要否 |
 |---|---|
 | `devices/新センサ.py` | 追加（新規作成のみ） |
+| `devices/sensor_map.py` | センサキーとクラスのマッピングを追記 |
 | `judgement/threshold.py` | 変更不要 |
-| `judgement/trend.py` | 変更不要 |
-| `notification/webhook.py` | 変更不要 |
+| `notifiers/webhook.py` | 変更不要 |
 | `frontend/` | 変更不要 |
 
 ---
 
-## 10．画面構成とアクセス権限
+## 11．画面構成とアクセス権限
 | パス | 画面 | アクセス権限 |
 |---|---|---|
 | `/login` | ログイン画面 | 全員（未認証） |
-| `/` | ダッシュボード（現在値カード・温度グラフ・計測テーブル） | ログイン済み全員 |
-| `/alerts` | アラート履歴（種別・チャンネルフィルター，ページネーション） | ログイン済み全員 |
+| `/` | ダッシュボード（現在値カード・グラフ・計測データ一覧） | ログイン済み全員 |
+| `/alerts` | アラート履歴 | ログイン済み全員 |
 | `/change-password` | パスワード変更 | ログイン済み全員 |
-| `/settings` | 閾値設定画面 | 管理者のみ |
-| `/admin` | ユーザー管理画面 | 管理者のみ |
-| `/prediction` | 傾向予測 精度レポート | 管理者のみ |
+| `/admin` | 管理画面（ユーザー・センサ・閾値・システム設定） | 管理者のみ |
 
-### ユーザー管理画面（/admin）でできること
-| 操作 | 内容 |
+### 管理画面（/admin）タブ構成
+| タブ | 内容 |
 |---|---|
-| ユーザー追加 | ID・初期パスワード・ロールを設定して登録 |
-| ユーザー削除 | アカウントの削除 |
-| ロール変更 | 管理者／一般の切り替え |
-| パスワードリセット | 仮パスワードを発行（現在のパスワードは参照不可） |
+| ユーザー管理 | ユーザーの追加・削除・ロール変更・パスワードリセット |
+| センサ管理 | センサ・チャンネルの追加・編集・有効化/無効化 |
+| 閾値設定 | チャンネルごとの上限・下限閾値，傾向監視ON/OFF |
+| システム設定 | データ収集間隔（分）の変更，SMTP設定 |
 
 ### アカウント発行ポリシー
 - 自由登録画面は設けない
 - アカウントは管理者が `/admin` から一元管理する
-- 初期管理者アカウントはシステム導入時に開発者が作成する
 
 ---
 
-## 11．インフラ構成
+## 12．インフラ構成
+
+### 本番環境
 | 項目 | 内容 |
 |---|---|
 | サーバー | さくらVPS |
 | リバースプロキシ | Nginx |
-| ドメイン | サブドメイン（例：thermo.example.com） |
+| ドメイン | thermonitor.ahirukuma.cc |
 | HTTPS | Let's Encrypt（certbot） |
-| 外部公開ポート | 80（HTTP），443（HTTPS） |
+| 外部公開ポート | 443（HTTPS） |
 | 内部ポート | FastAPI :8100，PostgreSQL :5432（外部非公開） |
-| クローラー対策 | robots.txt（全クロール拒否） |
+| uvicorn自動起動 | crontab @reboot → scripts/start_api.sh |
+| データ収集 | crontab 毎分 + flock，間隔はDB設定で制御 |
 
----
-
-## 12．実装ステップ
-| Step | 内容 |
+### Docker環境（顧客配布用）
+| 項目 | 内容 |
 |---|---|
-| 1 | FastAPI で閾値を返す API を1本作る |
-| 2 | React からそのAPIを叩いて画面に表示する |
-| 3 | フォームから閾値を更新できるようにする |
-| 4 | monitor.py と PostgreSQL を繋げる |
-| 5 | 通知（Webhook）を実装する |
-| 6 | ログイン認証・ロールベースアクセス制御を実装する |
-| 7 | ユーザー管理画面を実装する |
+| 公開ポート | :8080（HTTP） |
+| 構成 | nginx / app / monitor / db の4コンテナ |
+| マイグレーション | 起動時に docker-entrypoint.sh が自動実行 |
+| データ収集 | monitor コンテナが monitor_loop.py を常駐実行 |
 
 ---
 
-## 13．見送り事項と理由
-| 項目 | 理由 |
-|---|---|
-| Docker | 一人開発・さくらVPS1台・3サービスの規模では不要．複数人開発や環境が増えた際に改めて検討する |
-| Next.js | 今回の設定画面程度の用途ではオーバースペック |
-| Django | フルスタックフレームワークは今回の規模に対して過剰 |
-| ユーザー自由登録 | 社内システムのためアカウント発行は管理者が一元管理する |
-
----
-
-## 14．開発フロー
-
-### ブランチ戦略
+## 13．ブランチ戦略
 ```
 main          # 本番環境に反映するコード（常に動く状態を保つ）
 develop       # 開発の統合ブランチ
-feature/xxx   # 機能ごとの作業ブランチ（作業後はdevelopにマージ）
+feature/xxx   # 機能ごとの作業ブランチ
+fix/xxx       # バグ修正ブランチ
+docs          # ドキュメント整備ブランチ
 ```
-
-### 作業の流れ
-```
-1. developから feature/xxx ブランチを切る
-2. 機能を実装する
-3. developにマージする
-4. developが安定したらmainにマージする
-```
-
-### featureブランチ一覧
-| ブランチ名 | 内容 |
-|---|---|
-| `feature/db-schema` | DBテーブル設計 |
-| `feature/ondotori` | データ取得（fetch.pyの移植） |
-| `feature/threshold` | 閾値異常判定 |
-| `feature/trend` | 一次回帰・傾向検知 |
-| `feature/webhook` | Teams通知 |
-| `feature/auth` | ログイン・セッション管理 |
-| `feature/dashboard` | ダッシュボード画面 |
-| `feature/settings` | 閾値設定画面 |
-| `feature/admin` | ユーザー管理画面 |
 
 ---
 
-## 15．パッケージ管理
-
-### 管理場所の対応
-| 管理方法 | 対象 |
+## 14．見送り事項と理由
+| 項目 | 理由 |
 |---|---|
-| `apt` | OS・サーバーソフトウェア |
-| `.venv` + `pip` | Pythonライブラリ |
-| `npm` | JavaScriptライブラリ |
-
-### aptでインストールするもの（システムパッケージ）
-| パッケージ | 用途 |
-|---|---|
-| `postgresql` | DBサーバー本体 |
-| `nodejs` | Reactのビルド環境 |
-| `nginx` | Webサーバー・リバースプロキシ |
-| `certbot` | SSL証明書（Let's Encrypt） |
-| `python3-certbot-nginx` | certbotのNginxプラグイン |
-
-### .venvでインストールするもの（Pythonライブラリ）
-| パッケージ | 用途 |
-|---|---|
-| `fastapi` | バックエンドフレームワーク |
-| `uvicorn` | FastAPIの実行サーバー |
-| `sqlalchemy` | ORM（DBテーブル操作） |
-| `asyncpg` | PostgreSQL接続 |
-| `python-dotenv` | .envファイルの読み込み |
-| `requests` | おんどとりAPI接続 |
-| `passlib` | パスワードハッシュ化 |
-| `python-jose` | セッション管理 |
-| `numpy` | 一次回帰計算 |
-
-### npmでインストールするもの（JavaScriptライブラリ）
-| パッケージ | 用途 |
-|---|---|
-| `react` | UIフレームワーク |
-| `typescript` | 型付きJavaScript |
-| `axios` | FastAPIへのHTTPリクエスト |
-| `react-router-dom` | 画面遷移管理 |
-| `jwt-decode` | フロントエンドでのJWTデコード・期限チェック |
-| `recharts` | 温度推移グラフの描画 |
+| Next.js | 今回の設定画面程度の用途ではオーバースペック |
+| Django | フルスタックフレームワークは今回の規模に対して過剰 |
+| ユーザー自由登録 | 社内システムのためアカウント発行は管理者が一元管理する |
+| 傾向予測精度追跡（FR-09） | 実運用での有用性が見えないため削除 |
 
 ---
 
@@ -338,6 +340,7 @@ feature/xxx   # 機能ごとの作業ブランチ（作業後はdevelopにマー
 | 1.0 | 2026-04-30 | 初版作成 |
 | 1.1 | 2026-06-23 | 技術スタック（FastAPI + React）確定，ファイル構成・拡張方針を追加 |
 | 1.2 | 2026-06-23 | ログイン認証・ロールベースアクセス制御・ユーザー管理要件を追加，インフラ構成を追加 |
-| 1.3 | 2026-06-30 | ナビゲーションバー・ルートガード・axiosインターセプター実装，HTTPS・robots.txt・uvicorn systemd化完了，傾向異常の閾値到達予測をダッシュボードに表示，ダッシュボードの自動更新・ページネーション追加，自己削除・自己降格防止，DBコネクションリーク修正，monitor.pyエラーログ追加 |
-| 1.4 | 2026-07-23 | 温度推移グラフ（recharts）・現在値カード追加，リクエスト前のJWTトークン期限チェック実装，アラート履歴フィルター（種別・チャンネル）追加 |
-| 1.5 | 2026-07-25 | アラート履歴を別タブページ（/alerts）に分離，パスワード変更画面（/change-password）追加，全タイムスタンプ表示を YYYY/MM/DD HH:mm 形式に統一（format.ts），ポート8000→8100変更，傾向異常の予測表示をステップ→時刻（例：約33分後 2026/07/25 05:15）に変更，傾向判定を実タイムスタンプ回帰・R²フィルター（0.75）に改善（誤検知抑制），傾向予測精度追跡機能追加（trend_predictionsテーブル・精度レポート画面 /prediction・管理者のみON/OFF切替），傾向判定のデータ並び順バグ修正・下降傾向の到達予測閾値バグ修正 |
+| 1.3 | 2026-06-30 | ナビゲーションバー・ルートガード・axiosインターセプター実装，HTTPS・uvicorn起動設定，傾向異常の閾値到達予測表示 |
+| 1.4 | 2026-07-23 | 温度推移グラフ（recharts）・現在値カード追加，アラート履歴フィルター追加 |
+| 1.5 | 2026-07-25 | アラート履歴を別タブページに分離，パスワード変更画面追加，タイムスタンプ表示統一，傾向判定を実時刻回帰・R²フィルターに改善 |
+| 1.6 | 2026-08-04 | タイムスタンプ設計をcron収集時刻に統一，ondotoriオフライン検出修正（rssi廃止），収集間隔のDB動的設定追加，グラフX軸を時系列軸に修正，CSVのUTF-8ファイル名対応，ナビバーsticky化・アンカーリンク追加，計測データ一覧フィルター追加，Docker対応（monitor_loop.py・009_app_settings.sql），docs/setup.md追加 |
