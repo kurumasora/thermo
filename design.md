@@ -253,6 +253,8 @@ thermo/
 │   ├─ check_webhook.py         # Teams Webhook疎通確認
 │   └─ check_email.py           # メール送信確認
 │
+├─ docs/
+│   └─ setup.md                 # Docker環境セットアップ手順書（顧客向け）
 ├─ docker-compose.yml
 ├─ .env.example
 ├─ logs/
