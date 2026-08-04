@@ -149,17 +149,23 @@ thermo/
 ├─ backend/
 │   ├─ main.py                  # FastAPI アプリ本体
 │   ├─ monitor.py               # cron で実行する監視スクリプト
-│   ├─ monitor_loop.py          # Docker用常駐監視プロセス
+│   ├─ monitor_loop.py          # Docker用常駐監視プロセス（1分ごとにmonitor.main()を呼ぶ）
 │   ├─ interfaces.py            # IMeasurementDevice・MeasurementData 定義
 │   ├─ db.py                    # DB接続（psycopg2）
 │   ├─ Dockerfile
 │   ├─ devices/
 │   │   ├─ ondotori.py          # おんどとり取得処理
+│   │   ├─ dummy_sensor.py      # テスト・開発用ダミーセンサ
 │   │   └─ sensor_map.py        # センサキー → クラスのマッピング
 │   ├─ judgement/
 │   │   ├─ threshold.py         # 閾値異常判定
-│   │   ├─ trend.py             # 傾向異常判定（実時刻回帰・R²フィルター）
-│   │   └─ factory.py           # 判定クラスのファクトリ
+│   │   ├─ base.py              # 判定基底クラス
+│   │   ├─ factory.py           # 判定クラスのファクトリ
+│   │   └─ plugins/             # プラガブル判定アルゴリズム
+│   │       ├─ linear.py        # 一次回帰（デフォルト）
+│   │       ├─ polynomial.py    # 多項式回帰
+│   │       ├─ rms.py           # RMS判定
+│   │       └─ exponential_smoothing.py
 │   ├─ notifiers/
 │   │   ├─ webhook.py           # Teams Webhook 通知
 │   │   └─ email.py             # メール通知（SMTP）
@@ -169,7 +175,12 @@ thermo/
 │   ├─ routers/
 │   │   ├─ settings.py          # 閾値・app_settings API
 │   │   ├─ status.py            # 計測データ・アラート履歴・CSV出力 API
-│   │   └─ admin.py             # ユーザー管理 API
+│   │   ├─ sensors.py           # センサ管理 API
+│   │   ├─ admin.py             # ユーザー管理 API
+│   │   └─ notification.py      # 通知設定（SMTP・Webhook）API
+│   ├─ models/
+│   │   ├─ device.py            # センサ関連Pydanticモデル
+│   │   └─ measurement.py       # 計測データ関連Pydanticモデル
 │   ├─ migrations/
 │   │   ├─ 001_init.sql
 │   │   ├─ 002_trend_predictions.sql
@@ -205,11 +216,22 @@ thermo/
 │   │   │       ├─ UserTab.tsx       # ユーザー管理タブ
 │   │   │       ├─ SensorTab.tsx     # センサ管理タブ
 │   │   │       ├─ ThresholdTab.tsx  # 閾値設定タブ
-│   │   │       └─ SystemTab.tsx     # システム設定タブ（収集間隔）
+│   │   │       ├─ SystemTab.tsx     # システム設定タブ（収集間隔・SMTP）
+│   │   │       ├─ NotificationTab.tsx # 通知設定タブ
+│   │   │       ├─ Toast.tsx         # トースト通知コンポーネント
+│   │   │       ├─ TogglePill.tsx    # ON/OFFトグルコンポーネント
+│   │   │       └─ styles.ts         # 管理画面共通スタイル
 │   │   ├─ utils/
 │   │   │   └─ format.ts             # タイムスタンプ統一フォーマット関数
 │   │   └─ api/
-│   │       └─ client.ts             # axiosインスタンス（401自動リダイレクト）
+│   │       ├─ client.ts             # axiosインスタンス（401自動リダイレクト）
+│   │       ├─ alerts.ts             # アラート履歴API
+│   │       ├─ auth.ts               # 認証API
+│   │       ├─ measurements.ts       # 計測データAPI
+│   │       ├─ notification.ts       # 通知設定API
+│   │       ├─ sensors.ts            # センサ管理API
+│   │       ├─ settings.ts           # 閾値・システム設定API
+│   │       └─ users.ts              # ユーザー管理API
 │   ├─ Dockerfile
 │   ├─ nginx.conf
 │   ├─ package.json
@@ -218,15 +240,18 @@ thermo/
 ├─ tests/
 │   ├─ test_threshold.py
 │   ├─ test_trend.py
-│   ├─ test_monitor.py
+│   ├─ test_auth.py
+│   ├─ test_cooldown.py
+│   ├─ test_sensor_delete.py
 │   └─ test_collection_timestamp.py
 │
 ├─ scripts/
 │   ├─ start_api.sh             # uvicorn起動スクリプト（crontab @reboot用）
-│   └─ migrate_app_settings.py  # app_settingsテーブル初期化スクリプト
-│
-├─ docs/
-│   └─ setup.md                 # Docker環境セットアップ手順書
+│   ├─ migrate_app_settings.py  # app_settingsテーブル初期化スクリプト
+│   ├─ insert_dummy.py          # 開発用ダミーデータ投入
+│   ├─ check_ondotori.py        # おんどとりAPI接続確認
+│   ├─ check_webhook.py         # Teams Webhook疎通確認
+│   └─ check_email.py           # メール送信確認
 │
 ├─ docker-compose.yml
 ├─ .env.example
@@ -281,7 +306,8 @@ class IMeasurementDevice(ABC):
 | ユーザー管理 | ユーザーの追加・削除・ロール変更・パスワードリセット |
 | センサ管理 | センサ・チャンネルの追加・編集・有効化/無効化 |
 | 閾値設定 | チャンネルごとの上限・下限閾値，傾向監視ON/OFF |
-| システム設定 | データ収集間隔（分）の変更，SMTP設定 |
+| システム設定 | データ収集間隔（分）の変更 |
+| 通知設定 | SMTP設定，センサごとのWebhook URL・メール通知先 |
 
 ### アカウント発行ポリシー
 - 自由登録画面は設けない
@@ -343,4 +369,4 @@ docs          # ドキュメント整備ブランチ
 | 1.3 | 2026-06-30 | ナビゲーションバー・ルートガード・axiosインターセプター実装，HTTPS・uvicorn起動設定，傾向異常の閾値到達予測表示 |
 | 1.4 | 2026-07-23 | 温度推移グラフ（recharts）・現在値カード追加，アラート履歴フィルター追加 |
 | 1.5 | 2026-07-25 | アラート履歴を別タブページに分離，パスワード変更画面追加，タイムスタンプ表示統一，傾向判定を実時刻回帰・R²フィルターに改善 |
-| 1.6 | 2026-08-04 | タイムスタンプ設計をcron収集時刻に統一，ondotoriオフライン検出修正（rssi廃止），収集間隔のDB動的設定追加，グラフX軸を時系列軸に修正，CSVのUTF-8ファイル名対応，ナビバーsticky化・アンカーリンク追加，計測データ一覧フィルター追加，Docker対応（monitor_loop.py・009_app_settings.sql），docs/setup.md追加 |
+| 1.6 | 2026-08-04 | タイムスタンプ設計をcron収集時刻に統一，ondotoriオフライン検出修正（rssi廃止），収集間隔のDB動的設定追加，グラフX軸を時系列軸に修正，CSVのUTF-8ファイル名対応，ナビバーsticky化・アンカーリンク追加，計測データ一覧フィルター追加，Docker対応（monitor_loop.py・009_app_settings.sql），docs/setup.md追加，ファイル構成を実装に合わせて全面修正 |
