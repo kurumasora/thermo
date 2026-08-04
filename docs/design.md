@@ -254,13 +254,13 @@ thermo/
 │   └─ check_email.py           # メール送信確認
 │
 ├─ docs/
-│   └─ setup.md                 # Docker環境セットアップ手順書（顧客向け）
+│   ├─ setup.md                 # Docker環境セットアップ手順書（顧客向け）
+│   └─ design.md                # 設計決定ドキュメント
 ├─ docker-compose.yml
 ├─ .env.example
-├─ logs/
-│   ├─ monitor.log
-│   └─ uvicorn.log
-└─ design.md
+└─ logs/
+    ├─ monitor.log
+    └─ uvicorn.log
 ```
 
 ---
