@@ -88,25 +88,16 @@ http://サーバーのIPアドレス:8080
 
 ---
 
-## 5. 初期ユーザーの作成
+## 5. 初期ユーザーについて
 
-起動後、管理者ユーザーを作成します。
+初回起動時に管理者ユーザーが自動作成されます。
 
-```bash
-docker compose exec app python -c "
-import os, psycopg2
-from passlib.context import CryptContext
-pwd = CryptContext(schemes=['bcrypt'])
-conn = psycopg2.connect(host='db', dbname=os.environ['DB_NAME'], user=os.environ['DB_USER'], password=os.environ['DB_PASS'])
-cur = conn.cursor()
-cur.execute(\"INSERT INTO users (username, hashed_password, role) VALUES (%s, %s, 'admin')\", ('admin', pwd.hash('changeme')))
-conn.commit()
-conn.close()
-print('管理者ユーザーを作成しました。ユーザー名: admin / パスワード: changeme')
-"
-```
+| 項目 | 値 |
+|---|---|
+| ユーザー名 | `admin` |
+| パスワード | `changeme` |
 
-ログイン後すぐにパスワードを変更してください。
+**ログイン後すぐにパスワードを変更してください。**
 
 ---
 
