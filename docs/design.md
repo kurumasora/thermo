@@ -255,6 +255,7 @@ thermo/
 │
 ├─ docs/
 │   ├─ setup.md                 # Docker環境セットアップ手順書（顧客向け）
+│   ├─ manual.md                # 操作マニュアル（画面構成・センサ追加・判定ロジック追加）
 │   └─ design.md                # 設計決定ドキュメント
 ├─ README.md                    # プロジェクト概要・クイックスタート
 ├─ docker-compose.yml

@@ -29,6 +29,7 @@ docker compose up -d
 | ファイル | 内容 |
 |---|---|
 | [docs/setup.md](docs/setup.md) | Docker環境セットアップ手順 |
+| [docs/manual.md](docs/manual.md) | 操作マニュアル（画面構成・センサ追加・判定ロジック追加） |
 | [docs/design.md](docs/design.md) | 設計決定ドキュメント |
 
 ## 主な機能
