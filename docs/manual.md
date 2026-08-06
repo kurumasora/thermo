@@ -4,6 +4,8 @@
 
 セットアップ（Docker起動）は [setup.md](setup.md)、設計上の判断理由は [design.md](design.md) を参照してください。
 
+リポジトリ：https://github.com/kurumasora/-thermo
+
 ---
 
 ## 目次
