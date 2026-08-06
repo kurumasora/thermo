@@ -3,5 +3,6 @@
 data/
 __pycache__/
 *.pyc
-*.pyo
-monitor.log
+*.log
+logs/*
+!logs/.gitkeep
