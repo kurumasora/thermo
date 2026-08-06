@@ -1,7 +1,7 @@
 # 設計決定ドキュメント：計測データ管理システム
 出雲村田製作所 向け　演習課題
 
-リポジトリ：https://github.com/kurumasora/-thermo
+リポジトリ：https://github.com/kurumasora/thermo
 
 ---
 
